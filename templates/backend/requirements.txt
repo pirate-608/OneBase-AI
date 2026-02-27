@@ -1,0 +1,28 @@
+fastapi
+uvicorn
+pydantic
+langchain
+langchain-core
+langchain-openai
+langchain-community
+langchain-postgres
+langchain-anthropic
+langchain-google-genai
+langchain-deepseek
+langchain-huggingface
+langchain-groq
+dashscope
+zhipuai
+qianfan
+psycopg[binary]
+python-dotenv
+# 处理 FastAPI 文件上传的必须库
+python-multipart
+# LangChain 官方推荐的轻量级 PDF 解析库
+pypdf
+# 更好的文本编码检测（解析未知 txt 必备）
+chardet
+# YAML 配置支持
+pyyaml
+# 数据库 ORM 支持
+sqlalchemy

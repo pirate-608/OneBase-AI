@@ -1,0 +1,50 @@
+[build-system]
+# 声明使用 setuptools 作为打包后端
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "onebase-ai"  # 在 PyPI 上的包名，建议加个后缀防止与已有包冲突
+version = "0.1.0"
+description = "像配置静态网站一样，一键构建与部署 AI 动态服务 (RAG 底座)"
+readme = "README.md"
+authors = [
+    { name = "Your Name", email = "your.email@example.com" }
+]
+requires-python = ">=3.10"
+# 将 onebase/requirements.txt 中的核心依赖搬到这里
+dependencies = [
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+    "pyyaml>=6.0",
+    "pydantic>=2.0.0",
+    "langchain>=0.1.0",
+    "langchain-postgres>=0.0.9",
+    "langchain-community>=0.0.10",
+    "langchain-openai>=0.1.0",
+    "langchain-anthropic>=0.1.0",
+    "langchain-google-genai>=0.1.0",
+    "langchain-deepseek>=0.1.0",
+    "langchain-huggingface>=0.1.0",
+    "langchain-groq>=0.1.0",
+    "qianfan>=0.2.3",
+    "dashscope>=0.4.0",
+    "zhipuai>=0.1.2",
+    "python-dotenv>=0.21.0",
+    "pypdf>=3.8.4",
+    "psycopg[binary]>=3.0.0"
+]
+
+# 🚀 核心魔法：将代码注册为系统命令
+[project.scripts]
+# 当用户在终端输入 onebase 时，实际执行的是 onebase.cli 模块下的 app 对象
+onebase = "onebase.cli:app"
+
+[tool.setuptools]
+# 告诉打包工具，我们的源码在哪些目录
+# 必须包含 templates 目录，因为 onebase CLI 需要将它们拷贝给用户
+packages = ["onebase", "templates"]
+
+[tool.setuptools.package-data]
+# 确保打包时不会漏掉静态资源、Dockerfile、依赖清单等非 Python 文件
+"templates" = ["**/*", "**/.*"]

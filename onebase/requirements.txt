@@ -1,0 +1,20 @@
+typer
+rich
+pyyaml
+pydantic
+# langchain 相关依赖
+langchain
+langchain-postgres
+langchain-community
+langchain-openai
+langchain-anthropic
+langchain-google-genai
+langchain-deepseek
+langchain-huggingface
+langchain-groq
+qianfan
+dashscope
+zhipuai
+psycopg[binary]
+python-dotenv
+pypdf

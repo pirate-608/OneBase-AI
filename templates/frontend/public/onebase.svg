@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="cubeLeftGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#101850" />
+      <stop offset="100%" stop-color="#04072b" />
+    </linearGradient>
+
+    <linearGradient id="cubeRightGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#4c77df" />
+      <stop offset="100%" stop-color="#243e8a" />
+    </linearGradient>
+
+    <linearGradient id="stemDarkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#080d38" />
+      <stop offset="100%" stop-color="#152366" />
+    </linearGradient>
+
+    <linearGradient id="cyanGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#00a8ff" />
+      <stop offset="100%" stop-color="#00f0ff" />
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(0, 0)">
+    <polygon points="96,224 256,320 256,128" fill="#283e78" />
+    
+    <polygon points="256,320 416,224 256,128" fill="#4572d3" />
+    
+    <polygon points="96,224 96,404 256,500 256,320" fill="url(#cubeLeftGrad)" />
+    
+    <polygon points="256,320 256,500 416,404 416,224" fill="url(#cubeRightGrad)" />
+
+    <polygon points="256,260 200,226 256,190" fill="#213366" />
+
+    <polygon points="256,260 256,60 200,94 200,226" fill="url(#stemDarkGrad)" />
+
+    <polygon points="144,128 144,168 200,134 200,94" fill="#131f60" />
+
+    <polygon points="320,22 320,222 256,260 256,60 144,128" fill="url(#cyanGrad)" />
+  </g>
+</svg>
