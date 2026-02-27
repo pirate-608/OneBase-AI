@@ -5,7 +5,7 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_community.embeddings import OllamaEmbeddings
 from langchain_postgres import PGVector
 from langchain_postgres.vectorstores import PGVector
-from factory import ModelFactory
+from .factory import ModelFactory
 
 class VectorStoreManager:
     def __init__(self, config):

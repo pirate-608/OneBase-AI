@@ -6,11 +6,11 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich import print
 from pydantic import ValidationError
-from config import OneBaseConfig
-from builder import KnowledgeBuilder
-from chunker import DocumentProcessor
-from docker_runner import DockerRunner
-from indexer import VectorStoreManager
+from .config import OneBaseConfig
+from .builder import KnowledgeBuilder
+from .chunker import DocumentProcessor
+from .docker_runner import DockerRunner
+from .indexer import VectorStoreManager
 
 # 初始化 Typer 应用和 Rich 控制台
 app = typer.Typer(
