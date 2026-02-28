@@ -1,10 +1,17 @@
 <template>
   <div class="flex h-screen bg-gray-50 text-gray-800 font-sans overflow-hidden">
     
+    <!-- 🌟 更新：传入历史会话相关的所有 Props 和 Events -->
     <Sidebar 
       :site-name="siteName" 
       :nav-tree="navTree" 
+      :sessions="sessions"
+      :current-session-id="sessionId"
       @select-file="openFilePreview" 
+      @new-session="createNewSession"
+      @select-session="selectSession"
+      @delete-session="deleteSession"
+      @rename-session="renameSession"
     />
 
     <FilePreview 
@@ -61,8 +68,11 @@ const previewFile = ref(null)
 const previewContent = ref('')
 const isUploading = ref(false)
 
-// 🌟 解构出聊天核心状态与方法
-const { messages, isGenerating, loadHistory, sendMessage } = useChat()
+// 🌟 全量解构出聊天核心状态与方法
+const { 
+  sessionId, sessions, messages, isGenerating, 
+  loadHistory, fetchSessions, createNewSession, selectSession, deleteSession, renameSession, sendMessage 
+} = useChat()
 
 // --- 页面初始化 API ---
 onMounted(async () => {
@@ -72,9 +82,11 @@ onMounted(async () => {
     if (res.ok) navTree.value = await res.json()
   } catch (e) { console.error("无法加载目录树", e) }
 
-  // 2. 🌟 调用封装好的加载历史记录方法
+  // 2. 🌟 调用封装好的加载历史记录和会话列表方法
+  await fetchSessions()
   await loadHistory()
-  // 🌟 让浏览器标签页标题同步 siteName 的值
+  
+  // 3. 让浏览器标签页标题同步 siteName 的值
   document.title = siteName.value;
 })
 
@@ -96,7 +108,6 @@ const handleFileUpload = async (event) => {
   if (!file) return
 
   isUploading.value = true
-  // 注意：因为 messages 是从 useChat 暴露出来的响应式对象，这里依然可以直接操作它！
   messages.value.push({ role: 'assistant', content: `正在解析并学习文档：**${file.name}**，请稍候...` })
 
   const formData = new FormData()
