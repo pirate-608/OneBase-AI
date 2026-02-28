@@ -1,6 +1,7 @@
 import json
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
+from sqlalchemy import func  # 🌟 新增：引入聚合函数
 from sqlalchemy.orm import Session
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langchain_postgres.vectorstores import PGVector
@@ -12,6 +13,42 @@ from factory import ModelFactory
 from database import get_db, ChatMessageDB 
 
 router = APIRouter()
+
+# 🌟 新增：获取历史会话列表接口
+@router.get("/sessions")
+def get_sessions(db: Session = Depends(get_db)):
+    """获取所有历史会话列表"""
+    # 按照会话中最后一条消息的时间降序排列
+    sessions = db.query(
+        ChatMessageDB.session_id,
+        func.max(ChatMessageDB.created_at).label('last_active')
+    ).group_by(ChatMessageDB.session_id).order_by(func.max(ChatMessageDB.created_at).desc()).all()
+
+    result = []
+    for sess in sessions:
+        # 找到该会话的第一条用户消息作为标题
+        first_msg = db.query(ChatMessageDB).filter(
+            ChatMessageDB.session_id == sess.session_id,
+            ChatMessageDB.role == "user"
+        ).order_by(ChatMessageDB.created_at.asc()).first()
+        
+        # 智能生成标题
+        title = first_msg.content[:15] + "..." if first_msg and len(first_msg.content) > 15 else (first_msg.content if first_msg else "新对话")
+        
+        result.append({
+            "id": sess.session_id,
+            "title": title,
+            "created_at": sess.last_active
+        })
+    return result
+
+# 🌟 新增：删除指定会话接口
+@router.delete("/history/{session_id}")
+def delete_chat_history(session_id: str, db: Session = Depends(get_db)):
+    """删除指定会话的所有历史记录"""
+    db.query(ChatMessageDB).filter(ChatMessageDB.session_id == session_id).delete()
+    db.commit()
+    return {"status": "success"}
 
 @router.get("/history/{session_id}")
 def get_chat_history(session_id: str, db: Session = Depends(get_db)):

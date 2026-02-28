@@ -73,7 +73,7 @@ features:
     config_path.write_text(default_yaml, encoding="utf-8")
     
     # 3. 生成 .env 模板
-    Path(".env").write_text("# OpenAI API Key\nOPENAI_API_KEY=your_api_key_here\n", encoding="utf-8")
+    Path(".env").write_text("# Your API Key and BASE_URL here if needed\n# For example:\n# OPENAI_API_KEY=your_api_key_here\nONEBASE_BASE_URL=https://your_base_url_here\n", encoding="utf-8")
 
     console.print(f"[green]✔[/green] 成功初始化项目！")
     console.print(f"👉 下一步: 编辑 [bold cyan]{CONFIG_FILE}[/bold cyan] 和 [bold cyan].env[/bold cyan]，然后运行 [bold green]onebase build[/bold green]")
