@@ -3,7 +3,7 @@
     <!-- 头部 Logo 与 标题 -->
     <div class="h-16 flex items-center px-6 border-b border-gray-100 gap-3">
       <div class="w-8 h-8 flex-shrink-0">
-        <img src="/logo.svg" alt="OneBase Logo" class="w-full h-full object-contain" />
+        <img src="../assets/onebase.svg" alt="OneBase Logo" class="w-full h-full object-contain" />
       </div>
       <h1 class="text-lg font-bold text-gray-800 tracking-tight truncate">
         {{ siteName }}
