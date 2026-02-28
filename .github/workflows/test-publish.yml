@@ -4,19 +4,35 @@ on:
   push:
     branches:
       - test  # 只有推送到 test 分支时触发
-  workflow_dispatch: # 允许在 GitHub UI 手动点击运行
+  workflow_dispatch: # 允许在 GitHub UI 手动触发
 
 jobs:
   test-publish:
     name: Build and publish to TestPyPI
     runs-on: ubuntu-latest
+    
+    # 配置 OIDC 权限（Trusted Publishing 必须）
     permissions:
       id-token: write
       contents: read
 
     steps:
-      - uses: actions/checkout@v4
-      
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      # 🌟 第一步：配置 Node.js 并构建前端
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build Vue Frontend
+        run: |
+          cd templates/frontend
+          npm install
+          npm run build
+
+      # 🌟 第二步：配置 Python 并进行整体打包
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -27,11 +43,16 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install build
 
-      - name: Build package
+      - name: Build Python package
         run: python -m build
 
+      # 可选：诊断步骤，检查打好的包里是否成功包含了前端 dist 目录
+      - name: Verify package contents
+        run: |
+          tar -tvf dist/*.tar.gz | grep "templates/frontend/dist" || echo "Warning: frontend/dist not found in tarball"
+
+      # 🌟 第三步：发布到 TestPyPI
       - name: Publish to TestPyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          # 🌟 显式指定发布到 TestPyPI 而不是正式版
           repository-url: https://test.pypi.org/legacy/

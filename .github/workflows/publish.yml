@@ -21,6 +21,20 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v4
 
+      # 🌟 第一步：配置 Node.js 并构建前端
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build Vue Frontend
+        run: |
+          cd templates/frontend
+          npm install
+          npm run build
+
+      # 🌟 第二步：配置 Python 并进行整体打包
+
       - name: 设置 Python 3.11 环境
         uses: actions/setup-python@v5
         with:
@@ -37,6 +51,11 @@ jobs:
       # 这是一个可选的安全检查，看看打包出来的内容是不是包含了 templates
       - name: 检查打包产物
         run: ls -l dist/
+
+      # 可选：诊断步骤，检查打好的包里是否成功包含了前端 dist 目录
+      - name: Verify package contents
+        run: |
+          tar -tvf dist/*.tar.gz | grep "templates/frontend/dist" || echo "Warning: frontend/dist not found in tarball"
 
       - name: 发布到 PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
