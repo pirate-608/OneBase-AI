@@ -6,8 +6,8 @@ on:
       - 'v*' # 只有推送 v 打头的 tag 时才触发 (例如 v0.1.0)
 
 jobs:
-  build-and-publish:
-    name: Build and publish
+  publish-pypi:
+    name: Build and Publish to PyPI
     runs-on: ubuntu-latest
     
     # 配置 OIDC 权限（Trusted Publishing 必须）
@@ -38,7 +38,7 @@ jobs:
           cd ../..
           mkdir -p templates/backend/static
           cp -r templates/frontend/dist/* templates/backend/static/
-
+  
       # ==========================================
       # 2. 打包并发布 Python 包到 PyPI
       # ==========================================
@@ -61,6 +61,12 @@ jobs:
       # ==========================================
       # 3. 构建并发布镜像到 Docker Hub
       # ==========================================
+
+  publish-docker:
+    name: Build and Publish Docker Image
+    runs-on: ubuntu-latest
+    needs: publish-pypi
+    steps:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
