@@ -88,11 +88,13 @@ onebase serve --port 8000
 
 ## 📂 目录结构规范
 
-OneBase 极力推崇基于文件系统的约定路由。在 `onebase.yml` 中设置 `struct: default` 时，它会根据你的 `base/` 目录结构自动生成前端导航树。
+OneBase 极力推崇基于文件系统的约定路由。在 `onebase.yml` 中设置 `struct: default` 时，它会根据你的 `base/` 目录结构自动生成前端导航树。当然，你也可以手动在struct字段指定文件结构，系统会自动识别，主要：如果手动指定，会覆盖默认结构，未写入的文件会被无视。
 
+例如，如果你写 `struct: default` ，且你的原目录结构为：
 ```
 your-project/
 ├── base/                   # 你的知识文档都放在这里
+│   ├── overview.md
 │   ├── 开发指南/
 │   │   ├── 快速入门.md
 │   │   └── API接口.md
@@ -102,6 +104,31 @@ your-project/
 ├── .env                    # 敏感的 API 密钥配置
 ├── onebase.yml             # 项目的核心配置文件
 └── .onebase/               # 自动生成的构建产物与 Docker 编排文件
+```
+则知识库文件的实际目录结构为：
+```
+overview.md
+开发指南/
+   ├── 快速入门.md
+   └── API接口.md
+产品文档/
+   ├── 设计规范.pdf
+   └── 常见问题.txt
+```
+若你的struct字段为：
+```yaml
+struct:
+    - overview: overview.md
+    - section1:
+       - section1.1: <你的原路径>/section1-1.md
+       - section1.2: <你的原路径>/section1-2.md
+```
+则无论原目录结构如何，知识库文件被渲染出的实际目录结构均为：
+```
+overview.md
+section1/
+    ├── section1.1.md
+    └── section1.2.md
 ```
 
 ## 🛠️ 架构设计
