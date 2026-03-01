@@ -72,3 +72,9 @@ templates/frontend/*.local
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# 临时文件
+*.tmp
+*.log
+temp/
+test.md
