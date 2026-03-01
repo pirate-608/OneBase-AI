@@ -8,9 +8,11 @@ langchain-community
 langchain-postgres
 langchain-anthropic
 langchain-google-genai
+langchain-google-vertexai
 langchain-deepseek
-langchain-huggingface
+langchain-ollama
 langchain-groq
+langchain-modelscope-integration
 dashscope
 zhipuai
 qianfan

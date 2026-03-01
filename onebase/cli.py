@@ -1,24 +1,32 @@
 import os
+import sys
 import typer
 from pathlib import Path
-from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich import print
+from rich.table import Table
 from pydantic import ValidationError
+
+# 相对导入包内模块
 from .config import OneBaseConfig
 from .builder import KnowledgeBuilder
 from .chunker import DocumentProcessor
 from .docker_runner import DockerRunner
 from .indexer import VectorStoreManager
+from .deps_manager import get_required_packages
 
-# 初始化 Typer 应用和 Rich 控制台
+# 🌟 引入独立解耦的日志与 UI 中枢
+from .logger import logger, console, err_console, setup_logger
+
+# 🌟 运行时 i18n 翻译函数
+from .i18n import _, set_lang
+
 app = typer.Typer(
     name="onebase",
-    help="OneBase: 像配置静态网站一样，一键构建与部署 AI 动态服务",
+    help="OneBase: Build & deploy AI services like configuring a static site",
+    context_settings={"help_option_names": ["-h", "--help"]},
     add_completion=False,
 )
-console = Console()
 
 # 默认常量
 CONFIG_FILE = "onebase.yml"
@@ -26,335 +34,508 @@ BASE_DIR = "base"
 HIDDEN_DIR = ".onebase"
 
 
-@app.command()
-def init(
-    force: bool = typer.Option(False, "--force", "-f", help="强制覆盖已存在的文件"),
+def version_callback(value: bool):
+    """Handle the global -V flag."""
+    if value:
+        # 🌟 [1-1] 与 __init__.py 统一，从 pyproject.toml 元数据获取版本号
+        try:
+            from importlib.metadata import version
+
+            ver = version("onebase-ai")
+        except Exception:
+            ver = "dev"
+        print(f"OneBase CLI, version {ver}")
+        raise typer.Exit()
+
+
+@app.callback()
+def main(
+    version: bool = typer.Option(
+        None,
+        "--version",
+        "-V",
+        callback=version_callback,
+        is_eager=True,
+        help="Show version and exit",
+    ),
+    lang: str = typer.Option(
+        "en",
+        "--lang",
+        "-l",
+        help="Output language: en, zh",
+    ),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Enable verbose output (debug mode)"
+    ),
+    quiet: bool = typer.Option(
+        False, "--quiet", "-q", help="Quiet mode (errors only, for CI)"
+    ),
 ):
     """
-    初始化一个新的 OneBase 项目
+    OneBase - Build & deploy AI services like configuring a static site.
+    """
+    # 🌟 设置语言（必须在 setup_logger 之前，以便首条日志即可翻译）
+    set_lang(lang)
+
+    if quiet:
+        setup_logger("ERROR")
+    elif verbose:
+        setup_logger("DEBUG")
+    else:
+        setup_logger("INFO")
+
+
+@app.command()
+def init(
+    force: bool = typer.Option(False, "--force", "-f", help="Overwrite existing files"),
+):
+    """
+    Initialize a new OneBase project with base directory and config files.
     """
     console.print(
-        Panel.fit("🚀 欢迎使用 [bold blue]OneBase[/bold blue]!", border_style="blue")
+        Panel.fit(
+            _("🚀 Welcome to [bold blue]OneBase[/bold blue]!"), border_style="blue"
+        )
     )
 
     config_path = Path(CONFIG_FILE)
     base_path = Path(BASE_DIR)
 
     if config_path.exists() and not force:
-        console.print(f"[yellow]⚠️  {CONFIG_FILE} 已存在。使用 --force 覆盖。[/yellow]")
+        logger.warning(
+            _("⚠️  {config} already exists. Use --force to overwrite.").format(
+                config=CONFIG_FILE
+            )
+        )
         raise typer.Exit(code=1)
 
-    # 1. 创建默认目录结构
+    # Create base directory structure
     base_path.mkdir(exist_ok=True)
     (base_path / "overview.md").write_text(
-        "# 欢迎来到你的知识库\n\n在这里放置你的文档。", encoding="utf-8"
+        _(
+            "# Welcome to your Knowledge Base\n\nPlace your Markdown or PDF documents here."
+        ),
+        encoding="utf-8",
     )
+
+    # 创建运行缓存目录
     Path(HIDDEN_DIR).mkdir(exist_ok=True)
 
-    # 2. 生成默认的 onebase.yml
+    # 写入默认配置模板
     default_yaml = """site_name: My AI Assistant
 engine:
   reasoning:
-    provider: 
-    model: 
+    provider: ollama
+    model: deepseek-r1:1.5b
   embedding:
-    provider: 
-    model: 
-
+    provider: ollama
+    model: nomic-embed-text:v1.5
 database:
   type: postgresql
   vector_store: pgvector
-
 knowledge_base:
   path: ./base
   chunk_size: 500
-  # 留空或填写 default，系统会自动扫描 base 目录生成左侧导航树
   struct: default
-
 features:
-  - chat_history: true
-  - file_upload: true
+  chat_history: true
+  file_upload: true
 """
     config_path.write_text(default_yaml, encoding="utf-8")
 
-    # 3. 生成 .env 模板
-    Path(".env").write_text(
-        "# Your API Key and BASE_URL here if needed\n# For example:\n# OPENAI_API_KEY=your_api_key_here\nOPENAI_BASE_URL=https://api.openai.com/v1\n",
-        encoding="utf-8",
+    # 🌟 [3-1] 初始化环境变量模板，自动生成随机数据库密码
+    import secrets
+
+    db_password = secrets.token_urlsafe(16)
+
+    env_content = f"""{_("# ============ Database Config (auto-generated, feel free to change) ============")}
+POSTGRES_USER=onebase
+POSTGRES_PASSWORD={db_password}
+POSTGRES_DB=onebase_db
+
+{_("# ============ API Keys ============")}
+{_("# OpenAI / DeepSeek API Key (leave empty if using local Ollama only)")}
+OPENAI_API_KEY=
+
+{_("# ModelScope SDK Token (for online model inference)")}
+MODELSCOPE_SDK_TOKEN=
+
+{_("# ============ Security (optional) ============")}
+{_("# Allowed CORS origins, comma-separated. Default * allows all")}
+# CORS_ORIGINS=http://localhost:3000,https://yourdomain.com
+"""
+    Path(".env").write_text(env_content, encoding="utf-8")
+
+    # Write bootstrap requirements.txt
+    req_content = _(
+        "# \ud83d\udce6 OneBase Dynamic Dependencies\n"
+        "# After editing onebase.yml, run:\n"
+        "# onebase get-deps > requirements.txt\n"
+        "# Then:\n"
+        "# pip install -r requirements.txt\n"
     )
-    console.print(f"[green]✔[/green] 成功初始化项目！")
-    console.print(
-        f"👉 下一步: 编辑 [bold cyan]{CONFIG_FILE}[/bold cyan] 和 [bold cyan].env[/bold cyan]，然后运行 [bold green]onebase build[/bold green]"
+    Path("requirements.txt").write_text(req_content, encoding="utf-8")
+
+    logger.info(_("[green]\u2714[/green] Project initialized successfully!"))
+    logger.info(
+        _(
+            "Next steps:\n"
+            " 1. Edit [bold cyan]onebase.yml[/bold cyan] to configure your preferred model\n"
+            " 2. Run [bold green]onebase get-deps > requirements.txt[/bold green] and install deps\n"
+            " 3. Add documents and run [bold green]onebase build[/bold green] to build the knowledge base"
+        )
     )
 
 
-@app.command()
-def build():
+@app.command(name="get-deps")
+def get_deps():
     """
-    解析配置，处理文件切片，并构建向量知识库
+    Detect required PyPI packages from onebase.yml (supports > redirect).
     """
     if not Path(CONFIG_FILE).exists():
-        console.print(f"[red]❌ 找不到 {CONFIG_FILE}。请先运行 `onebase init`。[/red]")
+        err_console.print(
+            "[red]"
+            + _("❌ {config} not found. Please run `onebase init` first.").format(
+                config=CONFIG_FILE
+            )
+            + "[/red]"
+        )
         raise typer.Exit(code=1)
-
-    console.print(f"📦 正在读取并校验配置 [bold cyan]{CONFIG_FILE}[/bold cyan]...")
 
     try:
         config = OneBaseConfig.load(CONFIG_FILE)
-    except ValidationError as e:
-        console.print("\n[red]❌ 配置文件参数有误，请检查:[/red]")
-        for err in e.errors():
-            loc = " -> ".join([str(x) for x in err["loc"]])
-            console.print(f"  [yellow]➤ {loc}[/yellow]: {err['msg']}")
+        packages = get_required_packages(config)
+
+        for pkg in packages:
+            sys.stdout.write(f"{pkg}\n")
+
+    except Exception as e:
+        err_console.print(
+            "[red]" + _("❌ Config parsing failed: {err}").format(err=e) + "[/red]"
+        )
         raise typer.Exit(code=1)
 
-    console.print(f"[green]✔[/green] 配置读取成功！")
 
-    # --- 新增的 Builder 逻辑 ---
-    console.print("\n[cyan]🔍 正在扫描和解析知识库目录...[/cyan]")
+@app.command()
+def build(
+    with_ollama: bool = typer.Option(
+        False, "--with-ollama", help="Start Ollama container for local embedding"
+    ),
+    with_xinference: bool = typer.Option(
+        False, "--with-xinference", help="Start Xinference container"
+    ),
+    with_vllm: bool = typer.Option(False, "--with-vllm", help="Start vLLM container"),
+    use_gpu: bool = typer.Option(
+        False,
+        "--use-gpu",
+        "-g",
+        help="Enable NVIDIA GPU passthrough for inference containers",
+    ),
+):
+    """
+    Parse config, chunk documents, and build the vector knowledge base.
+    """
+    if not Path(CONFIG_FILE).exists():
+        logger.error(
+            _(
+                "❌ {config} not found. Run `onebase init` in your project root first."
+            ).format(config=CONFIG_FILE)
+        )
+        raise typer.Exit(code=1)
+
+    flags = sum([with_ollama, with_xinference, with_vllm])
+    if flags > 1:
+        logger.error(
+            _(
+                "❌ Container conflict: only one local inference engine can be specified at a time."
+            )
+        )
+        raise typer.Exit(code=1)
+
+    logger.info(
+        _("📦 Reading config [bold cyan]{config}[/bold cyan]...").format(
+            config=CONFIG_FILE
+        )
+    )
+    try:
+        config = OneBaseConfig.load(CONFIG_FILE)
+    except ValidationError as e:
+        logger.error(_("❌ Invalid config, please check:\n{err}").format(err=e))
+        raise typer.Exit(code=1)
+
+    logger.info(_("[green]✔[/green] Config loaded successfully!"))
+    logger.info(_("\n[cyan]🔍 Scanning knowledge base directory...[/cyan]"))
 
     builder = KnowledgeBuilder(
         base_path=config.knowledge_base.path, struct=config.knowledge_base.struct
     )
-
-    # 获取展平后的文档和缺失的文件
     valid_docs, missing_files = builder.parse()
 
-    if missing_files:
-        console.print("[red]❌ 在 base/ 目录中找不到以下文件:[/red]")
-        for f in missing_files:
-            console.print(f"  - [yellow]{f}[/yellow]")
-        raise typer.Exit(code=1)
-
     if not valid_docs:
-        console.print("[yellow]⚠️  知识库是空的，没有找到任何文件。[/yellow]")
+        logger.warning(
+            _("⚠️  Knowledge base is empty — no valid MD/PDF/TXT files found.")
+        )
         raise typer.Exit(code=1)
 
-    console.print(
-        f"[green]✔[/green] 成功解析知识库树，共找到 [bold blue]{len(valid_docs)}[/bold blue] 个源文件。"
+    logger.info(
+        _("\n[cyan]✂️  Chunking documents (Chunk Size: {size})...[/cyan]").format(
+            size=config.knowledge_base.chunk_size
+        )
     )
-
-    # --- 新增的 Chunking 逻辑 ---
-    console.print(
-        f"\n[cyan]✂️  开始读取文件并按 {config.knowledge_base.chunk_size} 字符切片...[/cyan]"
-    )
-
-    # 初始化切片处理器
     processor = DocumentProcessor(chunk_size=config.knowledge_base.chunk_size)
 
-    # 执行处理
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
         transient=True,
+        console=console,
     ) as progress:
-        progress.add_task(description="读取并切割文档中...", total=None)
+        progress.add_task(
+            description=_("Analyzing document structure and generating chunks..."),
+            total=None,
+        )
         chunks = processor.process(valid_docs)
 
-    console.print(
-        f"[green]✔[/green] 切片完成！共生成 [bold blue]{len(chunks)}[/bold blue] 个文本块。"
+    logger.info(
+        _(
+            "[green]✔[/green] Done! Generated [bold blue]{count}[/bold blue] memory chunks."
+        ).format(count=len(chunks))
     )
+    logger.info(_("\n[cyan]💾 Starting backend services and writing data...[/cyan]"))
 
-    # 打印前几个文本块供开发者预览
-    console.print("\n[dim]👀 预览前 3 个文本块：[/dim]")
-    for i, chunk in enumerate(chunks[:3]):
-        console.print(f"\n[bold yellow]--- Chunk {i+1} ---[/bold yellow]")
-        # 打印元数据（这是 RAG 的关键）
-        console.print(f"[cyan]Metadata:[/cyan] {chunk.metadata}")
-
-        # 限制打印长度，避免刷屏
-        content = chunk.page_content
-        display_text = content[:150] + "..." if len(content) > 150 else content
-        console.print(f"[white]{display_text}[/white]")
-
-    # ---------------------------
-
-    console.print("\n[green]✔[/green] 构建流程（演示）完成！")
-    # --- 新增的向量化与入库逻辑 ---
-    console.print("\n[cyan]💾 准备将数据向量化并写入数据库...[/cyan]")
-
-    # 1. 确保环境变量已加载 (读取本地 .env)
-    if Path(".env").exists():
-        from dotenv import load_dotenv
-
-        load_dotenv(".env")
-
-    # 2. 检查数据库状态，如果没启动，临时拉起
-    runner = DockerRunner(config=config, port=8000)
-    # 我们生成 compose 文件，并只启动 db 服务
+    runner = DockerRunner(
+        config=config,
+        port=8000,
+        with_ollama=with_ollama,
+        with_xinference=with_xinference,
+        with_vllm=with_vllm,
+        use_gpu=use_gpu,
+    )
     runner.build_compose_file()
 
-    console.print("[dim]检查并确保 PostgreSQL (pgvector) 正在运行...[/dim]")
+    # 动态决定要拉起的容器组
+    services_to_start = ["db"]
+    if with_ollama:
+        services_to_start.append("ollama")
+    if with_xinference:
+        services_to_start.append("xinference")
+    if with_vllm:
+        services_to_start.append("vllm")
+
     import subprocess
 
     try:
+        logger.debug(
+            _("Starting container group: {services}").format(
+                services=", ".join(services_to_start)
+            )
+        )
+
+        if flags > 0:
+            logger.warning(
+                _(
+                    "💡 Note: If this is the first time using a containerized model, the embedding weights may not be downloaded yet. "
+                    "If ingestion fails, start containers with `serve` first to download the model, then run `build`."
+                )
+            )
+
         subprocess.run(
-            ["docker", "compose", "-f", str(runner.compose_file), "up", "-d", "db"],
+            ["docker", "compose", "-f", str(runner.compose_file), "up", "-d"]
+            + services_to_start,
             check=True,
             capture_output=True,
         )
     except Exception as e:
-        console.print("[red]❌ 数据库启动失败，请检查 Docker 状态。[/red]")
+        logger.error(
+            _(
+                "❌ Failed to start infrastructure. Make sure Docker is running. ({err})"
+            ).format(err=e)
+        )
         raise typer.Exit(code=1)
 
-    # 3. 执行入库
+    # 🌟 [2-1] 等待 PG 容器真正就绪后再入库，避免启动时序导致的连接失败
+    import time
+    from sqlalchemy import create_engine, text as sa_text
+    from dotenv import load_dotenv
+
+    load_dotenv()
+
+    # 🌟 [3-1] 从 .env 读取数据库凭据
+    db_user = os.getenv("POSTGRES_USER", "onebase")
+    db_pass = os.getenv("POSTGRES_PASSWORD", "onebase_secret")
+    db_name = os.getenv("POSTGRES_DB", "onebase_db")
+    _wait_conn = f"postgresql+psycopg://{db_user}:{db_pass}@localhost:5432/{db_name}"
+    _max_wait = 15  # 最多等待 15 次 × 2s = 30s
+    for _attempt in range(1, _max_wait + 1):
+        try:
+            _tmp_engine = create_engine(_wait_conn)
+            with _tmp_engine.connect() as _conn:
+                _conn.execute(sa_text("SELECT 1"))
+            _tmp_engine.dispose()
+            logger.debug(_("PG ready (attempt {n})").format(n=_attempt))
+            break
+        except Exception:
+            if _attempt < _max_wait:
+                logger.debug(
+                    _("⏳ PG not ready ({n}/{max}), retrying in 2s...").format(
+                        n=_attempt, max=_max_wait
+                    )
+                )
+                time.sleep(2)
+            else:
+                logger.error(
+                    _(
+                        "❌ Database not ready within 30s. Check Docker container status."
+                    )
+                )
+                raise typer.Exit(code=1)
+
     try:
         indexer = VectorStoreManager(config)
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            transient=True,
-        ) as progress:
-            progress.add_task(
-                description=f"调用 {config.engine.embedding.provider} API 进行向量化并入库...",
-                total=None,
-            )
-
-            # 关键步骤：执行 Embedding 并存入 PG
-            total_inserted = indexer.ingest(chunks)
-
-        console.print(
-            f"[green]✔[/green] 成功将 [bold blue]{total_inserted}[/bold blue] 个向量写入 PostgreSQL 数据库！"
+        total_inserted = indexer.ingest(chunks)
+        logger.info(
+            _(
+                "[green]✔[/green] Successfully wrote [bold blue]{count}[/bold blue] vectors to the database!"
+            ).format(count=total_inserted)
         )
-
     except Exception as e:
-        error_type = type(e).__name__
-        error_msg = str(e)
-        error_msg_lower = error_msg.lower()
-
-        # 场景 1：API Key 错误或未授权 (401)
-        if (
-            "auth" in error_msg_lower
-            or "api_key" in error_msg_lower
-            or error_type == "AuthenticationError"
-        ):
-            console.print(
-                Panel.fit(
-                    f"[bold red]❌ 身份验证失败 (Authentication Error)[/bold red]\n\n"
-                    f"当前模型商: [cyan]{config.engine.embedding.provider}[/cyan]\n"
-                    f"请检查你的 [bold].env[/bold] 文件，确认对应的 API Key 是否填写正确且有效。\n\n"
-                    f"[dim]底层反馈: {error_msg}[/dim]",
-                    border_style="red",
-                )
+        logger.error(_("❌ Vector ingestion failed: {err}").format(err=e))
+        logger.warning(
+            _(
+                "💡 Hint: You may not have installed deps. Run `onebase get-deps > requirements.txt` then pip install."
             )
-
-        # 场景 2：网络连接失败或本地 Ollama 未启动
-        elif (
-            "connect" in error_msg_lower
-            or "timeout" in error_msg_lower
-            or error_type in ["APIConnectionError", "ConnectError"]
-        ):
-            suggestion = "请检查你的网络连接，或确认是否需要配置代理。"
-            if config.engine.embedding.provider == "ollama":
-                suggestion = "由于你使用的是 Ollama，[bold yellow]请确认本地是否已经运行了 `ollama serve` 并且模型已下载。[/bold yellow]"
-
-            console.print(
-                Panel.fit(
-                    f"[bold red]❌ 网络连接失败 (Connection Error)[/bold red]\n\n"
-                    f"无法连接到 [cyan]{config.engine.embedding.provider}[/cyan] 的服务。\n"
-                    f"💡 {suggestion}\n\n"
-                    f"[dim]底层反馈: {error_type}[/dim]",
-                    border_style="red",
-                )
-            )
-
-        # 场景 3：触发速率限制或余额不足 (429)
-        elif (
-            "rate" in error_msg_lower
-            or "429" in error_msg_lower
-            or "insufficient_quota" in error_msg_lower
-        ):
-            console.print(
-                Panel.fit(
-                    f"[bold red]❌ 触及速率限制或余额不足 (Rate Limit / Quota)[/bold red]\n\n"
-                    f"你的请求速度过快，或者当前 API Key 的账户余额已耗尽。\n"
-                    f"💡 建议：登录 [cyan]{config.engine.embedding.provider}[/cyan] 控制台检查账单，或在配置中减小 `chunk_size`。\n\n"
-                    f"[dim]底层反馈: {error_msg}[/dim]",
-                    border_style="red",
-                )
-            )
-
-        # 场景 4：其他未知错误
-        else:
-            console.print(
-                Panel.fit(
-                    f"[bold red]❌ 发生未知内部错误[/bold red]\n\n"
-                    f"异常类型: {error_type}\n"
-                    f"异常详情: {error_msg}",
-                    border_style="red",
-                )
-            )
-
+        )
         raise typer.Exit(code=1)
-
-    console.print(
-        "\n[green]🎉 构建流程全部完成！你的知识库已经具备了 AI 检索能力。[/green]"
-    )
-    console.print(
-        "👉 下一步: 运行 [bold green]onebase serve[/bold green] 启动后端 API 与前端 UI"
-    )
 
 
 @app.command()
 def serve(
-    port: int = typer.Option(8000, "--port", "-p", help="服务绑定的端口"),
-    detach: bool = typer.Option(False, "--detach", "-d", help="后台运行"),
+    port: int = typer.Option(8000, "--port", "-p", help="Port to bind the service"),
+    detach: bool = typer.Option(
+        False, "--detach", "-d", help="Run in background (detached mode)"
+    ),
+    with_ollama: bool = typer.Option(
+        False, "--with-ollama", help="Bundle Ollama container with the service"
+    ),
+    with_xinference: bool = typer.Option(
+        False,
+        "--with-xinference",
+        help="Bundle Xinference container (ModelScope ecosystem)",
+    ),
+    with_vllm: bool = typer.Option(
+        False, "--with-vllm", help="Bundle vLLM container (max throughput)"
+    ),
+    use_gpu: bool = typer.Option(
+        False,
+        "--use-gpu",
+        "-g",
+        help="Enable NVIDIA GPU passthrough for inference containers",
+    ),
 ):
     """
-    启动 OneBase 前后端服务 (基于 Docker)
+    Start the OneBase service stack.
     """
     if not Path(CONFIG_FILE).exists():
-        console.print(f"[red]❌ 找不到 {CONFIG_FILE}。请先运行 `onebase init`。[/red]")
+        logger.error(_("❌ Config file not found. Run `onebase init` first."))
         raise typer.Exit(code=1)
 
-    console.print("🐳 正在解析配置并准备启动 Docker 服务...")
+    flags = sum([with_ollama, with_xinference, with_vllm])
+    if flags > 1:
+        logger.error(
+            _(
+                "❌ Container conflict: only one local inference engine can be specified."
+            )
+        )
+        raise typer.Exit(code=1)
+
+    logger.info(_("🐳 Parsing config and preparing Docker services..."))
 
     try:
-        # 1. 加载配置
         config = OneBaseConfig.load(CONFIG_FILE)
 
-        # 2. 打印启动概览表
-        from rich.table import Table
+        compute_mode = _("Host Machine")
+        if with_ollama:
+            compute_mode = _("Bundled Ollama")
+        elif with_xinference:
+            compute_mode = _("Bundled Xinference")
+        elif with_vllm:
+            compute_mode = _("Bundled vLLM")
 
-        table = Table(title=f"OneBase 运行状态 ({config.site_name})")
-        table.add_column("组件", style="cyan")
-        table.add_column("详情", style="magenta")
+        if use_gpu and flags > 0:
+            compute_mode += " [bold green]+ NVIDIA GPU[/bold green]"
+
+        table = Table(title=_("OneBase Status ({name})").format(name=config.site_name))
+        table.add_column(_("Component"), style="cyan")
+        table.add_column(_("Configuration"), style="magenta")
         table.add_row(
-            "Reasoning Engine",
-            f"{config.engine.reasoning.provider} ({config.engine.reasoning.model})",
+            _("Reasoning Engine"),
+            f"{config.engine.reasoning.provider} / {config.engine.reasoning.model}",
         )
-        table.add_row("Vector DB", f"{config.database.vector_store}")
-        table.add_row("Port", str(port))
+        table.add_row(_("Vector Store"), f"{config.database.vector_store}")
+        table.add_row(_("Port"), str(port))
+        table.add_row(_("Compute Mode"), compute_mode)
+
         console.print(table)
 
-        # 3. 初始化并启动 DockerRunner
-        runner = DockerRunner(config=config, port=port)
+        if with_ollama:
+            logger.warning(
+                _(
+                    "💡 First time? Make sure to download a model inside the container: "
+                    "`docker exec -it onebase_ollama ollama run <model>`"
+                )
+            )
+        elif with_xinference:
+            logger.warning(
+                _(
+                    "💡 After Xinference starts, visit `http://localhost:9997` to manage models."
+                )
+            )
+        elif with_vllm:
+            logger.warning(
+                _(
+                    "💡 vLLM is configured for the reasoning model in `onebase.yml`. "
+                    "Initial container startup may take a while to download weights."
+                )
+            )
+
+        runner = DockerRunner(
+            config=config,
+            port=port,
+            with_ollama=with_ollama,
+            with_xinference=with_xinference,
+            with_vllm=with_vllm,
+            use_gpu=use_gpu,
+        )
 
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             transient=True,
+            console=console,
         ) as progress:
             progress.add_task(
-                description="正在拉取镜像并启动容器 (这可能需要几分钟)...", total=None
+                description=_(
+                    "🚀 Orchestrating containers and starting API service..."
+                ),
+                total=None,
             )
+            runner.up(detach=detach)
 
-            # 执行 docker compose up
-            runner.up(detach=True)
-
-        console.print(
-            Panel.fit(
-                f"🎉 服务已成功启动！\n\n"
-                f"🌐 API 访问地址: [bold underline cyan]http://localhost:{port}[/bold underline cyan]\n"
-                f"🗄️  数据库端口: [bold]5432[/bold]\n\n"
-                f"🛑 停止服务: 运行 [bold red]onebase stop[/bold red]",
-                title="OneBase Server",
-                border_style="green",
+        if detach:
+            console.print(
+                Panel.fit(
+                    _(
+                        "🎉 OneBase is running!\n\n"
+                        "🌐 URL: [bold underline cyan]http://localhost:{port}[/bold underline cyan]\n"
+                        "🛑 Stop: run [bold red]onebase stop[/bold red]"
+                    ).format(port=port),
+                    title="Status: Online",
+                    border_style="green",
+                )
             )
-        )
 
     except Exception as e:
-        console.print(f"[red]❌ 启动失败: {e}[/red]")
+        logger.error(_("❌ Fatal error during startup: {err}").format(err=e))
         raise typer.Exit(code=1)
 
 
@@ -364,29 +545,34 @@ def stop(
         False,
         "--volumes",
         "-v",
-        help="同时删除挂载的数据卷（警告：会清空数据库数据！）",
+        help="Also remove data volumes (WARNING: erases database and local model weights!)",
     ),
 ):
     """
-    优雅地停止并移除运行中的 OneBase 服务
+    Gracefully stop and remove running OneBase services.
     """
     import subprocess
 
     compose_file = Path(HIDDEN_DIR) / "docker-compose.yml"
 
     if not compose_file.exists():
-        console.print(
-            "[yellow]⚠️  找不到运行中的服务配置 (未发现 .onebase/docker-compose.yml)。可能服务尚未启动。[/yellow]"
+        logger.warning(
+            _(
+                "⚠️  No running service config found (.onebase/docker-compose.yml missing). Service may not be started."
+            )
         )
         raise typer.Exit(code=0)
 
-    console.print("🛑 正在停止 OneBase 容器组...")
+    logger.info(_("🛑 Stopping OneBase containers..."))
 
     cmd = ["docker", "compose", "-f", str(compose_file), "down"]
 
-    # 如果用户带了 -v 参数，说明要彻底销毁数据
     if remove_volumes:
-        console.print("[red]⚠️  警告：正在清理数据卷，数据库向量数据将被清空！[/red]")
+        logger.error(
+            _(
+                "⚠️  Warning: Cleaning up data volumes — database and local model weights will be erased!"
+            )
+        )
         cmd.append("-v")
 
     try:
@@ -394,21 +580,19 @@ def stop(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             transient=True,
+            console=console,
         ) as progress:
             progress.add_task(
-                description="向容器发送 SIGTERM 信号并移除网络...", total=None
+                description=_("Sending SIGTERM and removing networks..."), total=None
             )
+            logger.debug(f"Executing: {' '.join(cmd)}")
+            subprocess.run(cmd, check=True, capture_output=True)
 
-            # 执行 docker compose down
-            subprocess.run(cmd, check=True, capture_output=True, text=True)
-
-        console.print("[green]✔[/green] 服务已成功停止并移除！")
-
+        logger.info(_("[green]✔[/green] Services stopped and cleaned up!"))
     except subprocess.CalledProcessError as e:
-        console.print(f"[red]❌ 停止服务时发生错误:\n{e.stderr}[/red]")
-        raise typer.Exit(code=1)
-    except FileNotFoundError:
-        console.print("[red]❌ 找不到 docker 命令，请检查 Docker 环境。[/red]")
+        logger.error(
+            _("❌ Error stopping services: {err}").format(err=e.stderr.decode("utf-8"))
+        )
         raise typer.Exit(code=1)
 
 

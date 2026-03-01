@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@tailwindcss/cli": "^4.2.1",
+    "dompurify": "^3.2.4",
     "highlight.js": "^11.11.1",
     "marked": "^17.0.3",
     "marked-highlight": "^2.2.3",

@@ -7,11 +7,11 @@ class ModelFactory:
     # 📝 手动维护的支持表 (已根据正确的 LangChain 社区包名修正)
     SUPPORTED_REASONING = [
         "openai", "ollama", "dashscope", "zhipu", "anthropic", 
-        "gemini", "deepseek", "qianfan", "groq"
+        "google", "deepseek", "qianfan", "groq", "modelscope", "google-vertex", "doubao", "siliconflow"
     ]
     SUPPORTED_EMBEDDING = [
-        "openai", "ollama", "dashscope", "zhipu", "huggingface", 
-        "gemini", "qianfan"
+        "openai", "ollama", "dashscope", "zhipu", 
+        "google", "qianfan", "modelscope", "google-vertex", "doubao", "siliconflow"
     ]
 
     @staticmethod
@@ -23,17 +23,23 @@ class ModelFactory:
 
         if provider == "openai":
             from langchain_openai import ChatOpenAI
-            return ChatOpenAI(model=model_name, streaming=True)
+            api_base = os.getenv("OPENAI_API_BASE") 
+            return ChatOpenAI(
+                model=model_name, 
+                streaming=True,
+                base_url=api_base,
+                api_key=os.getenv("OPENAI_API_KEY", "dummy-key") # 本地推理框架通常不需要真实 Key
+            )
             
         elif provider == "ollama":
-            from langchain_community.chat_models import ChatOllama
+            from langchain_ollama import ChatOllama
             base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
             return ChatOllama(model=model_name, base_url=base_url)
             
         elif provider == "dashscope":
             # 💡 修正：阿里通义千问原生接口真实类名为 ChatTongyi
             from langchain_community.chat_models import ChatTongyi
-            return ChatTongyi(model=model_name, streaming=True, dashscope_api_key=os.getenv("DASHSCOPE_API_KEY"))
+            return ChatTongyi(model=model_name, streaming=True, api_key=os.getenv("DASHSCOPE_API_KEY"))
             
         elif provider == "zhipu":
             # 💡 修正：智谱原生接口
@@ -45,10 +51,20 @@ class ModelFactory:
             from langchain_anthropic import ChatAnthropic
             return ChatAnthropic(model_name=model_name, streaming=True, anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"))
             
-        elif provider == "gemini":
+        elif provider == "google":
             # Google Gemini 原生接口
             from langchain_google_genai import ChatGoogleGenerativeAI
             return ChatGoogleGenerativeAI(model=model_name, streaming=True, google_api_key=os.getenv("GOOGLE_API_KEY"))
+        
+        elif provider == "google-vertex":
+            from langchain_google_vertexai import ChatVertexAI
+            return ChatVertexAI(
+                model=model_name,
+                streaming=True,
+                project=os.getenv("GOOGLE_CLOUD_PROJECT"),
+                location=os.getenv("VERTEX_LOCATION", "us-central1"),
+                credentials_path=os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+            )
             
         elif provider == "qianfan":
             # 💡 修正：百度千帆原生接口真实类名
@@ -61,14 +77,33 @@ class ModelFactory:
             return ChatGroq(model_name=model_name, groq_api_key=os.getenv("GROQ_API_KEY"), streaming=True)
             
         elif provider == "deepseek":
-            # DeepSeek 官方完全拥抱 OpenAI 协议，社区最佳实践是走 ChatOpenAI 代理
-            from langchain_openai import ChatOpenAI
-            return ChatOpenAI(
-                model=model_name,
-                openai_api_key=os.getenv("DEEPSEEK_API_KEY"),
-                openai_api_base=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
-                streaming=True
+            # 🌟 拥抱 LangChain 0.3+：使用独立的 langchain_deepseek 包
+            from langchain_deepseek import ChatDeepSeek
+            return ChatDeepSeek(model=model_name, streaming=True, api_key=os.getenv("DEEPSEEK_API_KEY"))
+        
+        elif provider == "modelscope":
+            # ModelScopeChatEndpoint 支持类似 Qwen/Qwen2.5-Coder-32B-Instruct 的魔搭模型
+            from langchain_modelscope import ModelScopeChatEndpoint
+            return ModelScopeChatEndpoint(model=model_name, streaming=True)
+        
+        elif provider == "doubao":
+            from langchain_community.chat_models import ChatVolcEngineMaas
+            return ChatVolcEngineMaas(
+            model=model_name,
+            streaming=True,
+            endpoint_id=os.getenv("VOLC_ENGINE_ENDPOINT_ID"),  # 火山方舟的接入点ID
+            ak=os.getenv("VOLC_ACCESS_KEY"),  # 火山引擎的Access Key
+            sk=os.getenv("VOLC_SECRET_KEY")   # 火山引擎的Secret Key
             )
+        elif provider == "siliconflow":
+            from langchain_community.chat_models import ChatSiliconFlow
+            return ChatSiliconFlow(
+            model=model_name,
+            streaming=True,
+            siliconflow_api_key=os.getenv("SILICONFLOW_API_KEY"),
+            base_url="https://api.siliconflow.cn/v1"  # 硅基流动的API地址
+            )
+        
 
     @staticmethod
     def get_embedding_model(provider: str, model_name: str):
@@ -79,10 +114,11 @@ class ModelFactory:
 
         if provider == "openai":
             from langchain_openai import OpenAIEmbeddings
-            return OpenAIEmbeddings(model=model_name)
+            api_base =os.getenv("OPENAI_API_BASE")
+            return OpenAIEmbeddings(model=model_name, api_key=os.getenv("OPENAI_API_KEY", "dummy-key"), base_url=api_base)
             
         elif provider == "ollama":
-            from langchain_community.embeddings import OllamaEmbeddings
+            from langchain_ollama import OllamaEmbeddings
             base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
             return OllamaEmbeddings(model=model_name, base_url=base_url)
             
@@ -99,11 +135,37 @@ class ModelFactory:
             from langchain_community.embeddings import QianfanEmbeddingsEndpoint
             return QianfanEmbeddingsEndpoint(model=model_name, qianfan_ak=os.getenv("QIANFAN_AK"), qianfan_sk=os.getenv("QIANFAN_SK"))
             
-        elif provider == "huggingface":
-            # HuggingFace 本地加载 (需要安装 sentence-transformers)
-            from langchain_huggingface import HuggingFaceEmbeddings
-            return HuggingFaceEmbeddings(model_name=model_name)
+        elif provider == "modelscope":
+            # ModelScopeEmbeddings 支持如 damo/nlp_corom_sentence-embedding_english-base 等
+            # 很多国内优秀的开源 BGE / 达摩院 向量模型都托管在这里
+            from langchain_modelscope import ModelScopeEmbeddings
+            return ModelScopeEmbeddings(model_id=model_name)
             
-        elif provider == "gemini":
+        elif provider == "google":
             from langchain_google_genai import GoogleGenerativeAIEmbeddings
             return GoogleGenerativeAIEmbeddings(model=model_name, google_api_key=os.getenv("GOOGLE_API_KEY"))
+        
+        elif provider == "google-vertex":
+            from langchain_google_vertexai import VertexAIEmbeddings
+            return VertexAIEmbeddings(
+                model=model_name,
+                project=os.getenv("GOOGLE_CLOUD_PROJECT"),
+                location=os.getenv("VERTEX_LOCATION", "us-central1"),
+                credentials_path=os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+            )
+        
+        elif provider == "doubao":
+            from langchain_community.embeddings import VolcEngineMaasEmbeddings
+            return VolcEngineMaasEmbeddings(
+                model=model_name,
+                endpoint_id=os.getenv("VOLC_ENGINE_ENDPOINT_ID"),  # 火山方舟的接入点ID
+                ak=os.getenv("VOLC_ACCESS_KEY"),  # 火山引擎的Access Key
+                sk=os.getenv("VOLC_SECRET_KEY")   # 火山引擎的Secret Key
+            )
+        elif provider == "siliconflow":
+            from langchain_community.embeddings import SiliconFlowEmbeddings
+            return SiliconFlowEmbeddings(
+                model=model_name,
+                siliconflow_api_key=os.getenv("SILICONFLOW_API_KEY"),
+                base_url="https://api.siliconflow.cn/v1"  # 硅基流动的API地址
+            )

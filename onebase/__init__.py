@@ -2,8 +2,14 @@
 OneBase: 像配置静态网站一样，一键构建与部署 AI 动态服务。
 """
 
-# 定义包的版本号
-__version__ = "0.1.0"
+# 🌟 [1-1] 版本号统一从 pyproject.toml 获取（唯一真相源）
+# 不再硬编码版本号，避免多处不一致
+try:
+    from importlib.metadata import version
+
+    __version__ = version("onebase-ai")
+except Exception:
+    __version__ = "dev"
 
 # 将 CLI 的核心 Typer 应用暴露出来
 # 这样在打包时，可以直接指向 onebase.app

@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="templates/frontend/public/onebase.svg" alt="OneBase Logo" width="120" />
+  <img src="./templates/frontend/public/onebase.svg" alt="OneBase Logo" width="120" />
   <h1>OneBase AI</h1>
   <p><strong>像配置静态网站一样，一键构建与部署 AI 动态服务 (RAG 底座)</strong></p>
 </div>
@@ -43,7 +43,7 @@ pip install onebase-ai
 onebase init
 ```
 
-这会生成默认的 `onebase.yml` 配置文件、`.env` 环境变量模板，以及用于存放文档的 `base/` 目录。
+这会生成默认的 `onebase.yml` 配置文件、`.env` 环境变量模板，一个空的requirements.txt，以及用于存放文档的 `base/` 目录。
 
 ### 3. 配置你的模型
 
@@ -70,7 +70,14 @@ engine:
 
 将你的 `.md`, `.txt` 或 `.pdf` 文件放入 `base/` 目录中。OneBase 会自动扫描这个目录。
 
-### 5. 构建向量知识库
+### 5. 安装依赖包
+**安装所需的PyPi包：**，你可以在根目录执行
+```bash
+onebase get-deps # 这会在终端输出所需的依赖包名单
+```
+你可以手动安装这些依赖，或在requirements.txt中写入这些包名并指定版本号（可选），然后执行；`pip install -r requirements.txt`
+
+### 6. 构建向量知识库
 
 ```bash
 onebase build
@@ -78,7 +85,7 @@ onebase build
 
 这一步会启动 PostgreSQL (pgvector)，读取你的文档，进行切片 (Chunking)，并调用 Embedding API 将数据存入向量数据库。
 
-### 6. 启动服务
+### 7. 启动服务
 
 ```bash
 onebase serve --port 8000
@@ -131,6 +138,10 @@ section1/
     └── section1.2.md
 ```
 
+## 🤖 模型配置
+
+OneBase AI支持大部分的的云端模型和部分本地模型（可能需要额外配置），详情参见[模型支持与配置](./docs/MODELS.md)
+
 ## 🛠️ 架构设计
 
 - **CLI 引擎**: Typer + Rich
@@ -138,6 +149,8 @@ section1/
 - **AI / RAG 层**: LangChain + PGVector
 - **前端应用**: Vue 3 + Tailwind CSS + Marked (带代码高亮)
 - **部署方式**: Docker Compose
+
+## 🛠️ API文档
 
 ## 🤝 参与贡献
 

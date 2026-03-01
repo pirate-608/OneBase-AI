@@ -9,8 +9,10 @@ langchain-community
 langchain-openai
 langchain-anthropic
 langchain-google-genai
+langchain-google-vertexai
 langchain-deepseek
-langchain-huggingface
+langchain-ollama
+langchain-modelscope-integration
 langchain-groq
 qianfan
 dashscope

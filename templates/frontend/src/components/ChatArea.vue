@@ -20,24 +20,27 @@
 
     <div class="p-4 bg-white border-t border-gray-200">
       <div class="max-w-4xl mx-auto flex items-end gap-3 bg-white p-2 rounded-2xl border border-gray-300 shadow-sm focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-400 transition-all">
-        <input type="file" ref="fileInput" class="hidden" @change="handleUpload" accept=".pdf,.txt,.md">
-        <button 
-          @click="triggerUpload" 
-          :disabled="isUploading || isGenerating"
-          class="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors disabled:opacity-50"
-          title="上传文档 (PDF/TXT/MD)"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />
-          </svg>
-        </button>
+        <!-- 🌟 [Step2] 仅在 feature_upload 开启时渲染上传按钮 -->
+        <template v-if="featureUpload">
+          <input type="file" ref="fileInput" class="hidden" @change="handleUpload" accept=".pdf,.txt,.md">
+          <button 
+            @click="triggerUpload" 
+            :disabled="isUploading || isGenerating"
+            class="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors disabled:opacity-50"
+            title="上传文档 (PDF/TXT/MD)"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />
+            </svg>
+          </button>
+        </template>
 
         <textarea
           v-model="inputMessage"
           rows="1"
-          placeholder="向 OneBase 提问，按 Enter 发送..."
+          placeholder="向 OneBase 提问，按 Enter 发送，Shift+Enter 换行..."
           class="flex-1 bg-transparent resize-none outline-none max-h-32 p-2 pl-3 text-[15px] text-gray-700 placeholder-gray-400"
-          @keydown.enter.prevent="handleSend"
+          @keydown.enter.exact.prevent="handleSend"
         ></textarea>
 
         <button 
@@ -62,7 +65,8 @@ const props = defineProps({
   messages: { type: Array, required: true },
   isGenerating: { type: Boolean, required: true },
   isUploading: { type: Boolean, required: true },
-  renderMarkdown: { type: Function, required: true }
+  renderMarkdown: { type: Function, required: true },
+  featureUpload: { type: Boolean, default: true }
 })
 
 const emit = defineEmits(['send', 'upload'])

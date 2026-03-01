@@ -7,6 +7,7 @@
       :nav-tree="navTree" 
       :sessions="sessions"
       :current-session-id="sessionId"
+      :feature-chat-history="featureChatHistory"
       @select-file="openFilePreview" 
       @new-session="createNewSession"
       @select-session="selectSession"
@@ -27,6 +28,7 @@
       :is-generating="isGenerating"
       :is-uploading="isUploading"
       :render-markdown="renderMarkdown"
+      :feature-upload="featureUpload"
       @send="sendMessage"
       @upload="handleFileUpload"
     />
@@ -59,7 +61,9 @@ const marked = new Marked(
     }
   })
 )
-const renderMarkdown = (text) => text ? marked.parse(text) : ''
+// 🌟 [3-3] 使用 DOMPurify 过滤 XSS，防止恶意脚本经由 Markdown 注入
+import DOMPurify from 'dompurify'
+const renderMarkdown = (text) => text ? DOMPurify.sanitize(marked.parse(text)) : ''
 
 // --- 全局视图状态 ---
 const siteName = ref("OneBase AI")
@@ -67,6 +71,10 @@ const navTree = ref([])
 const previewFile = ref(null)
 const previewContent = ref('')
 const isUploading = ref(false)
+
+// 🌟 [Step2] Feature Flags：从 /api/health 获取
+const featureUpload = ref(true)
+const featureChatHistory = ref(true)
 
 // 🌟 全量解构出聊天核心状态与方法
 const { 
@@ -82,11 +90,26 @@ onMounted(async () => {
     if (res.ok) navTree.value = await res.json()
   } catch (e) { console.error("无法加载目录树", e) }
 
-  // 2. 🌟 调用封装好的加载历史记录和会话列表方法
-  await fetchSessions()
-  await loadHistory()
+  // 2. 🌟 [Step2] 获取 feature flags
+  try {
+    const healthRes = await fetch('/api/health')
+    if (healthRes.ok) {
+      const healthData = await healthRes.json()
+      if (healthData.site_name) siteName.value = healthData.site_name
+      if (healthData.features) {
+        featureUpload.value = healthData.features.file_upload ?? true
+        featureChatHistory.value = healthData.features.chat_history ?? true
+      }
+    }
+  } catch (e) { console.error('无法获取服务状态', e) }
+
+  // 3. 🌟 调用封装好的加载历史记录和会话列表方法（仅在开启聊天历史时）
+  if (featureChatHistory.value) {
+    await fetchSessions()
+    await loadHistory()
+  }
   
-  // 3. 让浏览器标签页标题同步 siteName 的值
+  // 4. 让浏览器标签页标题同步 siteName 的值
   document.title = siteName.value;
 })
 

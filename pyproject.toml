@@ -9,7 +9,7 @@ version = "0.1.1"
 description = "像配置静态网站一样，一键构建与部署 AI 动态服务 (RAG 底座)"
 readme = "README.md"
 authors = [
-    { name = "Your Name", email = "your.email@example.com" }
+    { name = "pirate-608", email = "huangmaidou608@gmail.com" }
 ]
 requires-python = ">=3.10"
 # 将 onebase/requirements.txt 中的核心依赖搬到这里
@@ -18,21 +18,14 @@ dependencies = [
     "rich>=13.0.0",
     "pyyaml>=6.0",
     "pydantic>=2.0.0",
-    "langchain>=0.1.0",
-    "langchain-postgres>=0.0.9",
-    "langchain-community>=0.0.10",
-    "langchain-openai>=0.1.0",
-    "langchain-anthropic>=0.1.0",
-    "langchain-google-genai>=0.1.0",
-    "langchain-deepseek>=0.1.0",
-    "langchain-huggingface>=0.1.0",
-    "langchain-groq>=0.1.0",
-    "qianfan>=0.2.3",
-    "dashscope>=0.4.0",
-    "zhipuai>=0.1.2",
-    "python-dotenv>=0.21.0",
-    "pypdf>=3.8.4",
-    "psycopg[binary]>=3.0.0"
+    "langchain-core>=0.2.0",        # LangChain 核心抽象类
+    "langchain-postgres>=0.0.9",    # PGVector 入库必备
+    "psycopg[binary]>=3.0.0",       # 数据库驱动
+    "python-dotenv>=1.0.0",
+    # 兼容性锁定
+    "requests>=2.32.0,<=2.32.4",
+    "tenacity>=8.5.0,<10.0.0",
+    "pyjwt[crypto]>=2.10.1"
 ]
 
 # 🚀 核心魔法：将代码注册为系统命令
