@@ -5,14 +5,61 @@
       <div class="max-w-4xl mx-auto space-y-6 w-full">
         <div v-for="(msg, index) in messages" :key="index"
              :class="['flex', msg.role === 'user' ? 'justify-end' : 'justify-start']">
-          <div :class="[
-            'max-w-[80%] rounded-2xl px-5 py-3.5 shadow-sm overflow-x-auto',
-            msg.role === 'user' ? 'bg-blue-600 text-white rounded-tr-sm' : 'bg-white text-gray-800 border border-gray-100 rounded-tl-sm'
-          ]">
-            <div v-if="msg.role === 'user'" class="whitespace-pre-wrap text-[15px] leading-relaxed">
-              {{ msg.content }}
+          <div class="max-w-[80%]">
+            <div :class="[
+              'rounded-2xl px-5 py-3.5 shadow-sm overflow-x-auto',
+              msg.role === 'user' ? 'bg-blue-600 text-white rounded-tr-sm' : 'bg-white text-gray-800 border border-gray-100 rounded-tl-sm'
+            ]">
+              <div v-if="msg.role === 'user'" class="whitespace-pre-wrap text-[15px] leading-relaxed">
+                {{ msg.content }}
+              </div>
+              <div v-else class="prose prose-sm md:prose-base max-w-none prose-p:leading-relaxed prose-pre:p-0" v-html="renderMarkdown(msg.content)"></div>
             </div>
-            <div v-else class="prose prose-sm md:prose-base max-w-none prose-p:leading-relaxed prose-pre:p-0" v-html="renderMarkdown(msg.content)"></div>
+
+            <!-- AI 消息操作栏：复制 + 下载 -->
+            <div v-if="msg.role === 'assistant' && msg.content && !isGenerating"
+                 class="flex items-center gap-1 mt-1.5 ml-1">
+              <!-- 复制按钮 -->
+              <button
+                @click="copyToClipboard(msg.content, index)"
+                class="flex items-center gap-1 px-2 py-1 text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
+                :title="copiedIndex === index ? 'Copied!' : 'Copy'"
+              >
+                <svg v-if="copiedIndex !== index" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
+                </svg>
+                <svg v-else xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5 text-green-500">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+                <span>{{ copiedIndex === index ? 'Copied' : 'Copy' }}</span>
+              </button>
+
+              <!-- 下载按钮（带格式选择） -->
+              <div class="relative" ref="downloadMenuRefs">
+                <button
+                  @click="toggleDownloadMenu(index)"
+                  class="flex items-center gap-1 px-2 py-1 text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
+                  title="Download"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                  </svg>
+                  <span>Download</span>
+                </button>
+                <!-- 格式选择下拉 -->
+                <div v-if="downloadMenuIndex === index"
+                     class="absolute left-0 bottom-full mb-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-10 min-w-[120px]">
+                  <button @click="downloadContent(msg.content, 'md', index)"
+                          class="w-full text-left px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50 hover:text-gray-800 transition-colors">
+                    📄 Markdown (.md)
+                  </button>
+                  <button @click="downloadContent(msg.content, 'txt', index)"
+                          class="w-full text-left px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50 hover:text-gray-800 transition-colors">
+                    📝 Plain Text (.txt)
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -59,7 +106,7 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 
 const props = defineProps({
   messages: { type: Array, required: true },
@@ -74,6 +121,9 @@ const emit = defineEmits(['send', 'upload'])
 const inputMessage = ref('')
 const chatContainer = ref(null)
 const fileInput = ref(null)
+const copiedIndex = ref(null)
+const downloadMenuIndex = ref(null)
+const downloadMenuRefs = ref(null)
 
 // 自动滚动逻辑封装在组件内
 const scrollToBottom = async () => {
@@ -101,4 +151,57 @@ const handleSend = () => {
   emit('send', text)
   inputMessage.value = ''
 }
+
+// ---- 复制到剪贴板 ----
+const copyToClipboard = async (content, index) => {
+  try {
+    await navigator.clipboard.writeText(content)
+    copiedIndex.value = index
+    setTimeout(() => { copiedIndex.value = null }, 2000)
+  } catch {
+    // fallback for older browsers
+    const ta = document.createElement('textarea')
+    ta.value = content
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+    copiedIndex.value = index
+    setTimeout(() => { copiedIndex.value = null }, 2000)
+  }
+}
+
+// ---- 下载 ----
+const toggleDownloadMenu = (index) => {
+  downloadMenuIndex.value = downloadMenuIndex.value === index ? null : index
+}
+
+const downloadContent = (content, format, index) => {
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
+  const ext = format === 'md' ? 'md' : 'txt'
+  const mime = format === 'md' ? 'text/markdown' : 'text/plain'
+  const filename = `onebase-reply-${timestamp}.${ext}`
+  const blob = new Blob([content], { type: `${mime};charset=utf-8` })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+  downloadMenuIndex.value = null
+}
+
+// 点击外部关闭下载菜单
+const handleClickOutside = (e) => {
+  if (downloadMenuIndex.value !== null) {
+    downloadMenuIndex.value = null
+  }
+}
+
+onMounted(() => document.addEventListener('click', handleClickOutside, true))
+onBeforeUnmount(() => document.removeEventListener('click', handleClickOutside, true))
 </script>
