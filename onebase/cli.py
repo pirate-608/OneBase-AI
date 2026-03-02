@@ -356,15 +356,9 @@ def build(
     # 🌟 [2-1] 等待 PG 容器真正就绪后再入库，避免启动时序导致的连接失败
     import time
     from sqlalchemy import create_engine, text as sa_text
-    from dotenv import load_dotenv
+    from .db import build_db_url
 
-    load_dotenv()
-
-    # 🌟 [3-1] 从 .env 读取数据库凭据
-    db_user = os.getenv("POSTGRES_USER", "onebase")
-    db_pass = os.getenv("POSTGRES_PASSWORD", "onebase_secret")
-    db_name = os.getenv("POSTGRES_DB", "onebase_db")
-    _wait_conn = f"postgresql+psycopg://{db_user}:{db_pass}@localhost:5432/{db_name}"
+    _wait_conn = build_db_url()
     _max_wait = 15  # 最多等待 15 次 × 2s = 30s
     for _attempt in range(1, _max_wait + 1):
         try:

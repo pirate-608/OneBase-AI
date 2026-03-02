@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="..\templates\frontend\public\onebase.svg" width="40" height="40" style="vertical-align: middle; margin-right: 10px;" alt="OneBase Logo">
+  <img src="https://onebase.67656.fun/assets/images/onebase.svg" width="40" height="40" style="vertical-align: middle; margin-right: 10px;" alt="OneBase Logo">
   OneBase AI 模型支持与配置
 </h1>
 

@@ -1,4 +1,3 @@
-import os
 from typing import List
 from langchain_core.documents import Document
 from langchain_postgres.vectorstores import PGVector
@@ -9,18 +8,10 @@ class VectorStoreManager:
     def __init__(self, config):
         self.config = config
 
-        # 🌟 [3-1] 数据库凭据从 .env 环境变量读取，不再硬编码
-        from dotenv import load_dotenv
+        from .db import build_db_url
 
-        load_dotenv()  # 加载项目根目录的 .env 文件
-
-        db_user = os.getenv("POSTGRES_USER", "onebase")
-        db_pass = os.getenv("POSTGRES_PASSWORD", "onebase_secret")
-        db_name = os.getenv("POSTGRES_DB", "onebase_db")
-        # 注意：这里假设我们在宿主机运行 CLI，所以连接 localhost
-        self.connection_string = (
-            f"postgresql+psycopg://{db_user}:{db_pass}@localhost:5432/{db_name}"
-        )
+        # CLI 在宿主机运行，默认连接 localhost（由 POSTGRES_HOST 控制）
+        self.connection_string = build_db_url()
 
         # 2. 集合名称（可用来区分不同的项目或知识库版本）
         self.collection_name = self.config.site_name.replace(" ", "_").lower()

@@ -1,30 +1,31 @@
-fastapi
-uvicorn
-pydantic
-langchain
-langchain-core
-langchain-openai
-langchain-community
-langchain-postgres
-langchain-anthropic
-langchain-google-genai
-langchain-google-vertexai
-langchain-deepseek
-langchain-ollama
-langchain-groq
-langchain-modelscope-integration
-dashscope
-zhipuai
-qianfan
-psycopg[binary]
-python-dotenv
+fastapi>=0.135,<1
+uvicorn>=0.34,<1
+pydantic>=2.10,<3
+# LangChain 生态（锁定兼容版本区间，避免 pip 解析爆炸）
+langchain>=0.3,<0.4
+langchain-core>=0.3,<0.4
+langchain-openai>=0.3,<0.4
+langchain-community>=0.3,<0.4
+langchain-postgres>=0.0.17,<0.1
+langchain-anthropic>=0.3,<0.4
+langchain-google-genai>=2,<5
+langchain-google-vertexai>=2,<4
+langchain-deepseek>=0.1,<2
+langchain-ollama>=0.2,<2
+langchain-groq>=0.2,<2
+langchain-modelscope-integration>=0.1,<1
+dashscope>=1.20,<2
+zhipuai>=2,<3
+qianfan>=0.4,<1
+psycopg[binary]>=3.2,<4
+python-dotenv>=1,<2
 # 处理 FastAPI 文件上传的必须库
-python-multipart
+python-multipart>=0.0.18,<1
 # LangChain 官方推荐的轻量级 PDF 解析库
-pypdf
+pypdf>=5,<6
 # 更好的文本编码检测（解析未知 txt 必备）
-chardet
+chardet>=5,<6
 # YAML 配置支持
-pyyaml
+pyyaml>=6,<7
 # 数据库 ORM 支持
-sqlalchemy
+sqlalchemy>=2,<3

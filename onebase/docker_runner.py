@@ -71,16 +71,11 @@ class DockerRunner:
         }
 
     def _generate_compose_dict(self, use_remote_image: bool = False) -> Dict[str, Any]:
-        # 🌟 [3-1] 数据库凭据从 .env 环境变量读取，不再硬编码
-        import os
-        from dotenv import load_dotenv
+        from .db import get_db_credentials, build_db_url
 
-        load_dotenv()
-
-        db_user = os.getenv("POSTGRES_USER", "onebase")
-        db_pass = os.getenv("POSTGRES_PASSWORD", "onebase_secret")
-        db_name = os.getenv("POSTGRES_DB", "onebase_db")
-        db_url = f"postgresql+psycopg://{db_user}:{db_pass}@db:5432/{db_name}"
+        creds = get_db_credentials()
+        # Docker Compose 内部网络中，后端通过服务名 "db" 访问数据库
+        db_url = build_db_url(host_override="db")
 
         services = {}
         volumes_dict = {"pgdata": None}
@@ -91,11 +86,11 @@ class DockerRunner:
                 "image": "pgvector/pgvector:pg16",
                 "restart": "always",
                 "environment": {
-                    "POSTGRES_USER": db_user,
-                    "POSTGRES_PASSWORD": db_pass,
-                    "POSTGRES_DB": db_name,
+                    "POSTGRES_USER": creds["user"],
+                    "POSTGRES_PASSWORD": creds["password"],
+                    "POSTGRES_DB": creds["dbname"],
                 },
-                "ports": ["5432:5432"],
+                "ports": [f"{creds['port']}:5432"],
                 "volumes": ["pgdata:/var/lib/postgresql/data"],
             }
 
@@ -118,9 +113,8 @@ class DockerRunner:
                     "FEATURE_FILE_UPLOAD": str(
                         self.config.features.file_upload
                     ).lower(),
-                    # 默认网关穿透，指向宿主机上的各种推理服务端口
-                    "OLLAMA_BASE_URL": "http://host.docker.internal:11434",
-                    "OPENAI_API_BASE": "http://host.docker.internal:9997/v1",
+                    # 容器内标识，供 factory.py 自动重写 localhost → host.docker.internal
+                    "RUNNING_IN_DOCKER": "true",
                 },
                 "ports": [f"{self.port}:8000"],
                 "volumes": ["../base:/app/base", "../onebase.yml:/app/onebase.yml"],

@@ -1,6 +1,6 @@
 import yaml
 from pathlib import Path
-from typing import Dict, Any, Union
+from typing import Dict, Any, Literal, Union
 from pydantic import BaseModel, Field, ValidationError
 
 # --- 1. 定义数据模型 ---
@@ -17,8 +17,8 @@ class EngineConfig(BaseModel):
 
 
 class DatabaseConfig(BaseModel):
-    type: str = "postgresql"
-    vector_store: str = "pgvector"
+    type: Literal["postgresql"] = "postgresql"
+    vector_store: Literal["pgvector"] = "pgvector"
 
 
 class KnowledgeBaseConfig(BaseModel):

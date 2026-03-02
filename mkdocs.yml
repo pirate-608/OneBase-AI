@@ -1,0 +1,152 @@
+site_name: OneBase AI
+site_description: 像配置静态网站一样，一键构建与部署 AI 动态服务 (RAG 底座)
+site_url: https://onebase.67656.fun
+dev_addr: '127.0.0.1:8080'
+repo_url: https://github.com/pirate-608/OneBase-AI
+repo_name: GitHub
+
+hooks:
+  - hooks.py
+
+nav:
+  - 主页: index.md
+  - 快速入门: getting-started.md
+  - 用户指南:
+    - 配置: 
+      - 总览: user-guide\config\overview.md
+      - 选择模型引擎: user-guide\config\engine.md
+      - 数据库配置: user-guide\config\database.md
+      - 定制你的知识库: user-guide\config\knowledge_base.md
+      - 功能开关: user-guide\config\features.md
+      - 安全配置: user-guide\config\security.md
+      - 模型支持: user-guide\config\MODELS.md
+      - 预设配置: user-guide\config\preset_config.md
+    - OneBase CLI: 
+      - 基本命令: user-guide\cli\basic.md
+      - 参数解析: user-guide\cli\args.md
+    - 部署:
+      - 云端部署: user-guide\deploy\cloud_deploy.md
+
+  - 开发者指南:
+    - 目录结构: dev-guide\project_structure.md
+    - 数据库设计: dev-guide\database_design.md
+    - API 文档: dev-guide\api.md
+    - 前端实现: dev-guide\frontend.md
+    - 后端实现: dev-guide\backend.md
+  - 关于: 
+    - 发布说明: about\release-notes.md
+    - 贡献: about\contributing.md
+    - 许可证: about\LICENSE.md
+
+
+theme:
+  name: material
+  custom_dir: overrides
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.instant
+    - navigation.tracking
+    - navigation.top
+    - toc.integrate
+    - search.suggest
+    - search.highlight
+    - search.share
+    - navigation.footer
+    - content.code.copy
+    - content.code.annotate
+    - content.tooltips
+  palette:
+    - scheme: slate
+      primary: indigo
+      accent: amber
+      toggle:
+        icon: material/white-balance-sunny
+        name: 切换到亮色主题
+    - scheme: default
+      primary: indigo
+      accent: amber
+      toggle:
+        icon: material/weather-night
+        name: 切换到暗色主题
+  favicon: assets/images/onebase.svg
+  logo: assets/images/onebase.svg
+
+extra:
+  copyright: '<a href="http://beian.miit.gov.cn/" rel="noopener" target="_blank">浙ICP备2026007685号</a>'
+  generator: false
+
+# 3. 插件（必需项！）
+plugins:
+  - search # 搜索插件
+  - i18n:
+      docs_structure: suffix
+      fallback_to_default: true
+      languages:
+        - locale: zh
+          default: true
+          name: 中文
+          build: true
+        - locale: en
+          default: false
+          name: English
+          build: true
+          nav_translations:
+            主页: Home
+            快速入门: Getting Started
+            用户指南: User Guide
+            配置: Configuration
+            总览: Overview
+            选择模型引擎: Engine Configuration
+            数据库配置: Database Configuration
+            定制你的知识库: Knowledge Base
+            功能开关: Feature Flags
+            安全配置: Security
+            模型支持: Model Support
+            预设配置: Preset Configurations
+            OneBase CLI: OneBase CLI
+            基本命令: Basic Commands
+            参数解析: Arguments Reference
+            部署: Deployment
+            云端部署: Cloud Deployment
+            开发者指南: Developer Guide
+            目录结构: Project Structure
+            数据库设计: Database Design
+            API 文档: API Reference
+            前端实现: Frontend
+            后端实现: Backend
+            关于: About
+            发布说明: Release Notes
+            贡献: Contributing
+            许可证: License
+  - git-revision-date-localized:
+      type: date
+      enable_creation_date: true
+  - minify:
+      minify_html: true
+
+# 4. 扩展（Markdown增强）
+markdown_extensions:
+  - admonition
+  - attr_list  # 允许在标题等处使用 {#id}
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink
+  - pymdownx.mark
+  - pymdownx.superfences  # 围栏代码块（支持 title、行高亮等）
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde  # 支持删除线 ~~text~~
+  - toc:
+      permalink: true
+
+extra_css:
+  - assets/css/theme.css
+
+extra_js:
+  - assets/js/sidebar-toggle.js

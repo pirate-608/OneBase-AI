@@ -78,3 +78,6 @@ Thumbs.db
 *.log
 temp/
 test.md
+
+# mkdocs构建产物
+site/
