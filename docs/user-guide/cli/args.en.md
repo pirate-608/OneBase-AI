@@ -405,5 +405,5 @@ onebase build          # Rebuild
 ## Related Documentation
 
 - [Basic Commands](basic.md) — Command overview and execution flow
-- [Local Deployment](../deploy/local_deploy.md) — Complete deployment guide
+- [Local Deployment](../deploy/cloud_deploy.en.md) — Complete deployment guide
 - [Engine Configuration](../config/engine.md) — Provider and model selection

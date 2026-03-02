@@ -148,5 +148,5 @@ markdown_extensions:
 extra_css:
   - assets/css/theme.css
 
-extra_js:
+extra_javascript:
   - assets/js/sidebar-toggle.js
