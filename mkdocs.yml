@@ -13,30 +13,30 @@ nav:
   - 快速入门: getting-started.md
   - 用户指南:
     - 配置: 
-      - 总览: user-guide\config\overview.md
-      - 选择模型引擎: user-guide\config\engine.md
-      - 数据库配置: user-guide\config\database.md
-      - 定制你的知识库: user-guide\config\knowledge_base.md
-      - 功能开关: user-guide\config\features.md
-      - 安全配置: user-guide\config\security.md
-      - 模型支持: user-guide\config\MODELS.md
-      - 预设配置: user-guide\config\preset_config.md
+      - 总览: user-guide/config/overview.md
+      - 选择模型引擎: user-guide/config/engine.md
+      - 数据库配置: user-guide/config/database.md
+      - 定制你的知识库: user-guide/config/knowledge_base.md
+      - 功能开关: user-guide/config/features.md
+      - 安全配置: user-guide/config/security.md
+      - 模型支持: user-guide/config/MODELS.md
+      - 预设配置: user-guide/config/preset_config.md
     - OneBase CLI: 
-      - 基本命令: user-guide\cli\basic.md
-      - 参数解析: user-guide\cli\args.md
+      - 基本命令: user-guide/cli/basic.md
+      - 参数解析: user-guide/cli/args.md
     - 部署:
-      - 云端部署: user-guide\deploy\cloud_deploy.md
+      - 云端部署: user-guide/deploy/cloud_deploy.md
 
   - 开发者指南:
-    - 目录结构: dev-guide\project_structure.md
-    - 数据库设计: dev-guide\database_design.md
-    - API 文档: dev-guide\api.md
-    - 前端实现: dev-guide\frontend.md
-    - 后端实现: dev-guide\backend.md
+    - 目录结构: dev-guide/project_structure.md
+    - 数据库设计: dev-guide/database_design.md
+    - API 文档: dev-guide/api.md
+    - 前端实现: dev-guide/frontend.md
+    - 后端实现: dev-guide/backend.md
   - 关于: 
-    - 发布说明: about\release-notes.md
-    - 贡献: about\contributing.md
-    - 许可证: about\LICENSE.md
+    - 发布说明: about/release-notes.md
+    - 贡献: about/contributing.md
+    - 许可证: about/LICENSE.md
 
 
 theme:
@@ -46,6 +46,7 @@ theme:
     - navigation.tabs
     - navigation.sections
     - navigation.instant
+    - navigation.instant.prefetch
     - navigation.tracking
     - navigation.top
     - toc.integrate
