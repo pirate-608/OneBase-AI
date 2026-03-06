@@ -1,33 +1,35 @@
-fastapi>=0.135,<1
-uvicorn>=0.34,<1
-pydantic>=2.10,<3
-# LangChain 生态（锁定兼容版本区间，避免 pip 解析爆炸）
-langchain>=1.2,<2
-langchain-core>=1.2,<2
-langchain-openai>=1.1,<2
-langchain-community>=0.4,<1
-langchain-postgres>=0.0.17,<0.1
-langchain-anthropic>=1.3,<2
-langchain-google-genai>=4.2,<5
-langchain-google-vertexai>=3.2,<4
-langchain-deepseek>=1.0,<2
-langchain-ollama>=1.0,<2
-langchain-groq>=1.1,<2
-langchain-modelscope-integration>=0.1,<1
-dashscope>=1.20,<2
-zhipuai>=2,<3
-qianfan>=0.4,<1
-psycopg[binary]>=3.2,<4
-python-dotenv>=1,<2
+# === 精确锁定版本，避免 pip 依赖回溯爆炸 ===
+# 运行 onebase upgrade-deps 可刷新至最新兼容版本
+fastapi==0.135.1
+uvicorn==0.41.0
+pydantic==2.12.5
+# LangChain 生态
+langchain==1.2.10
+langchain-core==1.2.15
+langchain-openai==1.1.10
+langchain-community==0.4.1
+langchain-postgres==0.0.17
+langchain-anthropic==1.3.4
+langchain-google-genai==4.2.1
+langchain-google-vertexai==3.2.2
+langchain-deepseek==1.0.1
+langchain-ollama==1.0.1
+langchain-groq==1.1.2
+langchain-modelscope-integration==0.1.1
+dashscope==1.25.12
+zhipuai==2.1.5.20250825
+qianfan==0.4.12.3
+psycopg[binary]==3.3.3
+python-dotenv==1.2.1
 # 处理 FastAPI 文件上传的必须库
-python-multipart>=0.0.18,<1
+python-multipart==0.0.22
 # LangChain 官方推荐的轻量级 PDF 解析库
-pypdf>=5,<6
+pypdf==6.7.2
 # 更好的文本编码检测（解析未知 txt 必备）
-chardet>=5,<6
+chardet==7.0.1
 # YAML 配置支持
-pyyaml>=6,<7
+pyyaml==6.0.3
 # 数据库 ORM 支持
-sqlalchemy>=2,<3
+sqlalchemy==2.0.46
 # Redis（缓存 + 限流）
-redis>=5,<6
+redis==7.2.1
