@@ -69,5 +69,17 @@ onebase.yml → CLI 读取 → Docker 环境变量注入 → 后端条件路由 
 3. 后端根据环境变量决定是否注册路由、是否存储对话
 4. 前端通过 `/config` 接口获取开关状态，条件渲染 UI 组件
 
+---
+
+## 与性能参数的关系
+
+`features` 负责“功能是否启用”，`performance` 负责“启用后如何控压和提速”。推荐组合如下：
+
+- 开启 `features.chat_history` 时，建议同时开启 `performance.rate_limit_enabled`
+- 开启 `features.file_upload` 时，建议设置较低的 `performance.upload_rate_limit_per_minute`
+- 若有高频重复提问场景，建议开启 `performance.redis_cache_enabled` 并设置合适的 `redis_context_cache_ttl_seconds`
+
+详见：[配置总览](overview.md) 中 `performance.*` 字段说明。
+
 !!! tip
     修改 `features` 后需要重新执行 `onebase serve` 才能生效（无需重新 `build`）。

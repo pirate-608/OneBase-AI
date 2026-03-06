@@ -33,12 +33,21 @@ class FeaturesConfig(BaseModel):
     file_upload: bool = True
 
 
+class PerformanceConfig(BaseModel):
+    redis_cache_enabled: bool = True
+    redis_context_cache_ttl_seconds: int = Field(default=300, gt=0)
+    rate_limit_enabled: bool = True
+    chat_rate_limit_per_minute: int = Field(default=30, gt=0)
+    upload_rate_limit_per_minute: int = Field(default=6, gt=0)
+
+
 class OneBaseConfig(BaseModel):
     site_name: str
     engine: EngineConfig
     database: DatabaseConfig
     knowledge_base: KnowledgeBaseConfig
     features: FeaturesConfig = FeaturesConfig()
+    performance: PerformanceConfig = PerformanceConfig()
 
     # --- 2. 核心加载与校验方法 ---
     @classmethod

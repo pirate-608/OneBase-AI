@@ -22,7 +22,8 @@ OneBase 后端是一个 FastAPI 应用，运行在 Docker 容器内，提供 RAG
 main.py                      # FastAPI 入口
 ├── config.py                # 环境变量集中读取
 ├── database.py              # SQLAlchemy 模型 + 连接管理
-├── schemas.py               # Pydantic 请求模型
+├── schemas.py               # Pydantic 请求模型（带输入约束）
+├── deps.py                  # 模型 / 向量库单例管理
 ├── factory.py               # 模型工厂（从 CLI 包拷贝）
 └── routers/
     ├── chat.py              # 对话 + 会话管理
@@ -47,6 +48,7 @@ EMBEDDING_PROVIDER     ← engine.embedding.provider
 EMBEDDING_MODEL        ← engine.embedding.model
 FEATURE_CHAT_HISTORY   ← features.chat_history
 FEATURE_FILE_UPLOAD    ← features.file_upload
+API_TOKEN              ← .env 中的 API_TOKEN（可选）
 RUNNING_IN_DOCKER      ← "true"
 ```
 
@@ -78,7 +80,29 @@ app.add_middleware(
 - 默认 `*` 允许所有来源（本地开发）
 - 指定域名时开启 `allow_credentials`
 
-### 4. 路由注册
+### 4. API Token 鉴权中间件
+
+当环境变量 `API_TOKEN` 非空时，在 CORS 之后、速率限制之前注册鉴权中间件：
+
+```python
+_AUTH_WHITELIST = {"/api/health"}
+
+@app.middleware("http")
+async def apply_auth(request, call_next):
+    if request.url.path in _AUTH_WHITELIST or not request.url.path.startswith("/api/"):
+        return await call_next(request)
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer ") or auth[7:] != API_TOKEN:
+        return JSONResponse(status_code=401, content={"detail": "Unauthorized"},
+                            headers={"WWW-Authenticate": "Bearer"})
+    return await call_next(request)
+```
+
+- `/api/health` 在白名单内，始终放行
+- 非 `/api/` 前缀请求（静态文件、SPA）不受影响
+- `API_TOKEN` 未设置时跳过整个中间件
+
+### 5. 路由注册
 
 ```python
 app.include_router(chat.router, prefix="/api")
@@ -90,7 +114,7 @@ if FEATURE_FILE_UPLOAD:
 
 `upload` 路由在 `file_upload: false` 时不注册，完全移除端点。
 
-### 5. 数据库懒初始化
+### 6. 数据库懒初始化
 
 首次 API 请求触发 `_init_db()`，带重试机制应对容器启动时序：
 
@@ -175,6 +199,51 @@ async def generate_stream():
 - 格式白名单：`.pdf`、`.txt`、`.md`
 - Feature Flag 门控：`FEATURE_FILE_UPLOAD` 为 false 时返回 403
 - 错误信息脱敏：500 错误只返回 `"文件处理失败"`，详情写入日志
+
+---
+
+## 请求模型约束（schemas.py）
+
+`schemas.py` 使用 Pydantic `Field` 和 `Literal` 对所有输入进行严格校验：
+
+| 字段                         | 约束                                        |
+| :--------------------------- | :------------------------------------------ |
+| `ChatMessage.role`           | `Literal["user", "assistant"]`，拒绝其他值  |
+| `ChatMessage.content`        | `min_length=1, max_length=50000`            |
+| `ChatRequest.session_id`     | `max_length=128, pattern=^[a-zA-Z0-9_\-]+$` |
+| `ChatRequest.messages`       | `min_length=1`（至少一条消息）              |
+| `RenameSessionRequest.title` | `min_length=1, max_length=100`              |
+
+所有不符合约束的请求会被 FastAPI 自动拦截，返回 `422 Unprocessable Entity` 并附带详细的错误位置信息。
+
+---
+
+## 模型 / 向量库单例（deps.py）
+
+`deps.py` 提供线程安全的单例获取函数，确保 Embedding 模型、推理模型和 PGVector 存储在应用生命周期内只初始化一次：
+
+```python
+_lock = threading.Lock()
+_embedding_model = None
+
+def get_embedding_model():
+    global _embedding_model
+    if _embedding_model is None:
+        with _lock:
+            if _embedding_model is None:   # double-checked locking
+                _embedding_model = ModelFactory.get_embedding_model(...)
+    return _embedding_model
+```
+
+**提供的单例函数：**
+
+| 函数                    | 说明                |
+| :---------------------- | :------------------ |
+| `get_embedding_model()` | Embedding 模型实例  |
+| `get_reasoning_model()` | 推理 LLM 实例       |
+| `get_vector_store()`    | PGVector 向量库连接 |
+
+`chat.py` 和 `upload.py` 中的路由通过调用这些函数获取共享实例，避免重复创建模型对象。
 
 ---
 

@@ -18,6 +18,7 @@ class DockerRunner:
         with_ollama: bool = False,
         with_xinference: bool = False,
         with_vllm: bool = False,
+        with_docker_model: bool = False,
         use_gpu: bool = False,
     ):
         self.config = config
@@ -29,6 +30,7 @@ class DockerRunner:
         self.with_ollama = with_ollama
         self.with_xinference = with_xinference
         self.with_vllm = with_vllm
+        self.with_docker_model = with_docker_model
         self.use_gpu = use_gpu
 
         self.package_dir = Path(__file__).parent.parent
@@ -92,13 +94,25 @@ class DockerRunner:
                 },
                 "ports": [f"{creds['port']}:5432"],
                 "volumes": ["pgdata:/var/lib/postgresql/data"],
+                "healthcheck": {
+                    "test": [
+                        "CMD-SHELL",
+                        f"pg_isready -U {creds['user']} -d {creds['dbname']}",
+                    ],
+                    "interval": "5s",
+                    "timeout": "3s",
+                    "retries": 10,
+                    "start_period": "10s",
+                },
             }
 
         # 2. 核心后端 API 服务
         if self.config:
             services["backend"] = {
                 "restart": "always",
-                "depends_on": ["db"],
+                "depends_on": {
+                    "db": {"condition": "service_healthy"},
+                },
                 "environment": {
                     "DATABASE_URL": db_url,
                     "SITE_NAME": self.config.site_name,
@@ -113,12 +127,46 @@ class DockerRunner:
                     "FEATURE_FILE_UPLOAD": str(
                         self.config.features.file_upload
                     ).lower(),
+                    "REDIS_CACHE_ENABLED": str(
+                        self.config.performance.redis_cache_enabled
+                    ).lower(),
+                    "REDIS_CONTEXT_CACHE_TTL_SECONDS": str(
+                        self.config.performance.redis_context_cache_ttl_seconds
+                    ),
+                    "RATE_LIMIT_ENABLED": str(
+                        self.config.performance.rate_limit_enabled
+                    ).lower(),
+                    "CHAT_RATE_LIMIT_PER_MINUTE": str(
+                        self.config.performance.chat_rate_limit_per_minute
+                    ),
+                    "UPLOAD_RATE_LIMIT_PER_MINUTE": str(
+                        self.config.performance.upload_rate_limit_per_minute
+                    ),
                     # 容器内标识，供 factory.py 自动重写 localhost → host.docker.internal
                     "RUNNING_IN_DOCKER": "true",
+                    # 🔐 API Token 鉴权：从宿主机 .env 透传到容器
+                    "API_TOKEN": "${API_TOKEN:-}",
                 },
                 "ports": [f"{self.port}:8000"],
                 "volumes": ["../base:/app/base", "../onebase.yml:/app/onebase.yml"],
                 "extra_hosts": ["host.docker.internal:host-gateway"],
+                "healthcheck": {
+                    "test": [
+                        "CMD-SHELL",
+                        "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')\"",
+                    ],
+                    "interval": "10s",
+                    "timeout": "5s",
+                    "retries": 5,
+                    "start_period": "30s",
+                },
+                "deploy": {
+                    "resources": {
+                        "limits": {
+                            "memory": "2G",
+                        },
+                    },
+                },
             }
 
             if Path(".env").exists():
@@ -136,11 +184,29 @@ class DockerRunner:
             # 🌟 3. 动态推理计算节点注入 (互斥)
             # ==========================================
             if self.with_ollama:
+                # Collect model names for auto-pull
+                ollama_models_env = {}
+                r_provider = self.config.engine.reasoning.provider.lower()
+                e_provider = self.config.engine.embedding.provider.lower()
+                if r_provider == "ollama":
+                    ollama_models_env["OLLAMA_REASONING_MODEL"] = (
+                        self.config.engine.reasoning.model
+                    )
+                if e_provider == "ollama":
+                    ollama_models_env["OLLAMA_EMBEDDING_MODEL"] = (
+                        self.config.engine.embedding.model
+                    )
+
                 services["ollama"] = {
                     "image": "ollama/ollama:latest",
                     "container_name": "onebase_ollama",
                     "ports": ["11434:11434"],
-                    "volumes": ["ollama_data:/root/.ollama"],
+                    "volumes": [
+                        "ollama_data:/root/.ollama",
+                        "./backend/ollama-entrypoint.sh:/entrypoint.sh",
+                    ],
+                    "entrypoint": ["/bin/bash", "/entrypoint.sh"],
+                    "environment": ollama_models_env,
                     "restart": "always",
                 }
                 if self.use_gpu:
@@ -149,16 +215,35 @@ class DockerRunner:
                 services["backend"]["environment"][
                     "OLLAMA_BASE_URL"
                 ] = "http://ollama:11434"
-                services["backend"]["depends_on"].append("ollama")
+                services["backend"]["depends_on"]["ollama"] = {
+                    "condition": "service_started"
+                }
                 volumes_dict["ollama_data"] = None
 
             elif self.with_xinference:
+                # Collect model names for auto-launch
+                xinference_models_env = {}
+                r_provider = self.config.engine.reasoning.provider.lower()
+                e_provider = self.config.engine.embedding.provider.lower()
+                if r_provider == "xinference":
+                    xinference_models_env["XINFERENCE_REASONING_MODEL"] = (
+                        self.config.engine.reasoning.model
+                    )
+                if e_provider == "xinference":
+                    xinference_models_env["XINFERENCE_EMBEDDING_MODEL"] = (
+                        self.config.engine.embedding.model
+                    )
+
                 services["xinference"] = {
                     "image": "xprobe/xinference:latest",
                     "container_name": "onebase_xinference",
                     "ports": ["9997:9997"],
-                    "volumes": ["xinference_data:/root/.xinference"],
-                    "command": "xinference-local -H 0.0.0.0 -p 9997",
+                    "volumes": [
+                        "xinference_data:/root/.xinference",
+                        "./backend/xinference-entrypoint.sh:/entrypoint.sh",
+                    ],
+                    "entrypoint": ["/bin/bash", "/entrypoint.sh"],
+                    "environment": xinference_models_env,
                     "restart": "always",
                 }
                 if self.use_gpu:
@@ -168,30 +253,84 @@ class DockerRunner:
                 services["backend"]["environment"][
                     "OPENAI_API_BASE"
                 ] = "http://xinference:9997/v1"
-                services["backend"]["depends_on"].append("xinference")
+                services["backend"]["depends_on"]["xinference"] = {
+                    "condition": "service_started"
+                }
                 volumes_dict["xinference_data"] = None
 
             elif self.with_vllm:
-                # 从配置文件读取模型名，传给 vLLM
+                # 从配置文件读取模型名，传给 vLLM entrypoint
                 model_name = self.config.engine.reasoning.model
+                vllm_env = {"VLLM_MODEL_NAME": model_name}
+                # 支持通过 .env 传入 HF_TOKEN 访问 gated 模型
                 services["vllm"] = {
                     "image": "vllm/vllm-openai:latest",
                     "container_name": "onebase_vllm",
                     "ports": ["8001:8000"],
-                    "volumes": ["vllm_data:/root/.cache/huggingface"],
-                    "command": f"--model {model_name} --host 0.0.0.0",
+                    "volumes": [
+                        "vllm_data:/root/.cache/huggingface",
+                        "./backend/vllm-entrypoint.sh:/entrypoint.sh",
+                    ],
+                    "entrypoint": ["/bin/bash", "/entrypoint.sh"],
+                    "environment": vllm_env,
                     "ipc": "host",
                     "restart": "always",
                 }
                 if self.use_gpu:
                     services["vllm"]["deploy"] = self._get_gpu_deploy_block()
 
+                # 从 .env 注入 HF_TOKEN（如果存在）
+                if not services["vllm"].get("env_file") and Path(".env").exists():
+                    services["vllm"]["env_file"] = ["../.env"]
+
                 # 覆盖 OpenAI 协议接口为容器内部 vLLM 地址 (vLLM 默认内部跑在 8000)
                 services["backend"]["environment"][
                     "OPENAI_API_BASE"
                 ] = "http://vllm:8000/v1"
-                services["backend"]["depends_on"].append("vllm")
+                services["backend"]["depends_on"]["vllm"] = {
+                    "condition": "service_started"
+                }
                 volumes_dict["vllm_data"] = None
+
+            elif self.with_docker_model:
+                # Docker Model Runner — 使用 Docker 原生模型管理 (Docker Desktop 4.40+)
+                # 通过 provider 服务类型声明模型，Docker 自动拉取和管理
+                docker_model_base_url = (
+                    "http://model-runner.docker.internal/engines/llama.cpp/v1"
+                )
+                r_provider = self.config.engine.reasoning.provider.lower()
+                e_provider = self.config.engine.embedding.provider.lower()
+
+                if r_provider == "docker-model":
+                    services["reasoning-model"] = {
+                        "provider": {
+                            "type": "model",
+                            "options": {
+                                "model": self.config.engine.reasoning.model,
+                            },
+                        },
+                    }
+                    services["backend"]["depends_on"]["reasoning-model"] = {
+                        "condition": "service_started"
+                    }
+
+                if e_provider == "docker-model":
+                    services["embedding-model"] = {
+                        "provider": {
+                            "type": "model",
+                            "options": {
+                                "model": self.config.engine.embedding.model,
+                            },
+                        },
+                    }
+                    services["backend"]["depends_on"]["embedding-model"] = {
+                        "condition": "service_started"
+                    }
+
+                # 覆盖 OpenAI 协议接口为 Docker Model Runner 内部地址
+                services["backend"]["environment"][
+                    "OPENAI_API_BASE"
+                ] = docker_model_base_url
 
         return {"version": "3.8", "services": services, "volumes": volumes_dict}
 

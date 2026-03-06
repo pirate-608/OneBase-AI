@@ -11,12 +11,11 @@
 | 依赖                                                                                                                       | 最低版本 | 说明                                  |
 | :------------------------------------------------------------------------------------------------------------------------- | :------- | :------------------------------------ |
 | [Python](https://www.python.org/downloads/)                                                                                | 3.10+    | OneBase CLI 运行环境                  |
-| [Docker Desktop](https://www.docker.com/products/docker-desktop/)/[Docker Engine](https://docs.docker.com/engine/install/) | 20.10+   | 容器化部署后端、数据库等服务          |
+| [Docker Desktop](https://www.docker.com/products/docker-desktop/)/[Docker Engine + Compose](https://docs.docker.com/engine/install/) | 20.10+   | 容器化部署后端、数据库等服务          |
 | pip                                                                                                                        | 22.0+    | Python 包管理器（通常随 Python 安装） |
 
 <div class="ob-note-grid">
   <div class="ob-note">推荐使用最新稳定版 Python，并确保已配置好系统 PATH。</div>
-  <div class="ob-note">生产环境建议启用 Docker Engine + Compose。</div>
   <div class="ob-note">本地 GPU 加速可显著提升推理速度。</div>
 </div>
 
@@ -130,9 +129,30 @@ OPENAI_API_KEY=sk-proj-xxxxxxxxxxxx
 !!! note "使用本地模型？（无需 API Key）"
     **方式一：Ollama（推荐）**
 
-    如果你选择 Ollama 作为引擎，请确保宿主机已安装并启动了 [Ollama](https://ollama.com)，或使用 `--with-ollama` 参数让 OneBase 自动启动 Ollama 容器。无需填写任何 API Key。
+    如果你选择 Ollama 作为引擎，请确保宿主机已安装并启动了 [Ollama](https://ollama.com)，或使用 `--with-ollama` 参数让 OneBase 自动启动 Ollama 容器（模型会自动拉取）。无需填写任何 API Key。
 
-    **方式二：Xinference / vLLM（OpenAI 兼容方案）**
+    **方式二：Docker Model Runner（Docker Desktop 4.40+）**
+
+    如果你使用的是 Docker Desktop 4.40+，可以直接使用 Docker 原生模型管理器，无需安装任何第三方工具：
+
+    ```yaml
+    engine:
+      reasoning:
+        provider: docker-model
+        model: ai/qwen2.5:7B-Q4_K_M
+      embedding:
+        provider: docker-model
+        model: ai/bge-m3:Q4_K_M
+    ```
+
+    ```bash
+    onebase build --with-docker-model
+    onebase serve --with-docker-model -d
+    ```
+
+    Docker 会自动管理模型的拉取和运行，无需任何 API Key。
+
+    **方式三：Xinference / vLLM（OpenAI 兼容方案）**
 
     在 `onebase.yml` 中将 provider 设为 `openai`：
 
@@ -268,19 +288,20 @@ onebase serve --with-ollama -g -d
 
 ## 常用命令速查
 
-| 命令                             | 说明                           |
-| :------------------------------- | :----------------------------- |
-| `onebase init`                   | 初始化项目脚手架               |
-| `onebase init --force`           | 强制重新初始化（覆盖已有文件） |
-| `onebase get-deps`               | 输出当前配置所需的依赖包       |
-| `onebase build`                  | 构建向量知识库                 |
-| `onebase build --with-ollama -g` | 使用 Ollama 容器 + GPU 构建    |
-| `onebase serve -d`               | 后台启动全栈服务               |
-| `onebase serve -p 3000 -d`       | 指定端口启动                   |
-| `onebase stop`                   | 停止所有服务                   |
-| `onebase stop -v`                | 停止并删除数据卷               |
-| `onebase --lang zh`              | 切换 CLI 输出为中文            |
-| `onebase -h`                     | 查看帮助                       |
+| 命令                                | 说明                           |
+| :---------------------------------- | :----------------------------- |
+| `onebase init`                      | 初始化项目脚手架               |
+| `onebase init --force`              | 强制重新初始化（覆盖已有文件） |
+| `onebase get-deps`                  | 输出当前配置所需的依赖包       |
+| `onebase build`                     | 构建向量知识库                 |
+| `onebase build --with-ollama -g`    | 使用 Ollama 容器 + GPU 构建    |
+| `onebase build --with-docker-model` | 使用 Docker 原生模型构建       |
+| `onebase serve -d`                  | 后台启动全栈服务               |
+| `onebase serve -p 3000 -d`          | 指定端口启动                   |
+| `onebase stop`                      | 停止所有服务                   |
+| `onebase stop -v`                   | 停止并删除数据卷               |
+| `onebase --lang zh`                 | 切换 CLI 输出为中文            |
+| `onebase -h`                        | 查看帮助                       |
 
 ---
 

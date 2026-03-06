@@ -86,10 +86,11 @@ During `onebase build` / `onebase serve`, the CLI copies files from this directo
 ```
 templates/
 ├── backend/                # FastAPI backend application
-│   ├── main.py             # FastAPI entry, CORS, route registration, SPA hosting
-│   ├── config.py           # Environment variable reader (DATABASE_URL, providers, flags)
+│   ├── main.py             # FastAPI entry, CORS, auth, route registration, SPA hosting
+│   ├── config.py           # Environment variable reader (DATABASE_URL, providers, flags, API_TOKEN)
 │   ├── database.py         # SQLAlchemy models (chat_messages, chat_session_meta)
-│   ├── schemas.py          # Pydantic request/response models
+│   ├── schemas.py          # Pydantic request/response models (with input constraints)
+│   ├── deps.py             # Model / vector store singleton management (thread-safe)
 │   ├── Dockerfile          # Backend container build file
 │   ├── requirements.txt    # Backend Python deps (30 packages, all version-locked)
 │   ├── routers/            # Route modules
@@ -120,8 +121,35 @@ templates/
         │   ├── FilePreview.vue # Document preview panel (MD render / PDF text)
         │   └── TreeNode.vue    # Recursive directory tree node
         └── composables/    # Composition functions
-            └── useChat.js  # Chat logic (SSE parsing, session management)
+            ├── useChat.js  # Chat logic (SSE parsing, session management)
+            └── useAuth.js  # API auth (token management, apiFetch wrapper)
 ```
+
+---
+
+## tests/ — Test Suite
+
+The `tests/` directory contains all unit tests, using the pytest framework:
+
+```
+tests/
+├── test_config.py          # OneBaseConfig loading / validation
+├── test_factory.py         # ModelFactory provider validation
+├── test_builder.py         # KnowledgeBuilder directory scanning / parsing
+├── test_chunker.py         # DocumentProcessor chunking logic
+├── test_rate_limiter.py    # FixedWindowRateLimiter local mode
+├── test_schemas.py         # Pydantic model constraints (role / content / session_id / title)
+└── test_auth.py            # API Token auth middleware (FastAPI TestClient)
+```
+
+To run:
+
+```bash
+pip install -e ".[test]"
+pytest -v
+```
+
+See the [Testing Guide](../about/contributing.md#testing) for details.
 
 ---
 

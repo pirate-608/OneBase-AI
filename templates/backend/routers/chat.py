@@ -1,28 +1,33 @@
 import json
+import hashlib
+import logging
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func  # 🌟 新增：引入聚合函数
 from sqlalchemy.orm import Session
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
-from langchain_postgres.vectorstores import PGVector
 
 from config import (
     SITE_NAME,
-    DB_URL,
-    EMBEDDING_PROVIDER,
-    EMBEDDING_MODEL,
-    REASONING_PROVIDER,
-    REASONING_MODEL,
     FEATURE_CHAT_HISTORY,
 )
 from schemas import ChatRequest, RenameSessionRequest
-from factory import ModelFactory
+from deps import get_embedding_model, get_reasoning_model, get_vector_store
+from cache import get_cached_context, set_cached_context
 
 # 🌟 引入数据库依赖（含会话元数据表）
 # 🌟 [2-2] 同时引入 _init_db 和 _SessionLocal 供流式生成器独立管理 session
 from database import get_db, ChatMessageDB, ChatSessionMeta, _init_db, _SessionLocal
 
 router = APIRouter()
+logger = logging.getLogger("onebase.backend")
+
+
+def _build_context_cache_key(
+    collection_name: str, search_query: str, k: int = 4
+) -> str:
+    digest = hashlib.sha256(search_query.encode("utf-8")).hexdigest()
+    return f"ctx:{collection_name}:{k}:{digest}"
 
 
 # 🌟 新增：获取历史会话列表接口
@@ -98,6 +103,7 @@ def delete_chat_history(session_id: str, db: Session = Depends(get_db)):
     """删除指定会话的所有历史记录"""
     db.query(ChatMessageDB).filter(ChatMessageDB.session_id == session_id).delete()
     db.commit()
+    logger.info("会话删除: session_id=%s", session_id)
     return {"status": "success"}
 
 
@@ -143,21 +149,19 @@ async def chat_endpoint(
         search_query = f"背景语境: {context_anchor}\n用户问题: {user_query}"
 
     # 3. 向量检索
-    embeddings = ModelFactory.get_embedding_model(EMBEDDING_PROVIDER, EMBEDDING_MODEL)
     collection_name = SITE_NAME.replace(" ", "_").lower()
+    vector_store = get_vector_store()
 
-    vector_store = PGVector(
-        embeddings=embeddings,
-        collection_name=collection_name,
-        connection=DB_URL,
-        use_jsonb=True,
-    )
+    context_cache_key = _build_context_cache_key(collection_name, search_query, k=4)
+    context_text = get_cached_context(context_cache_key)
 
-    retrieved_docs = vector_store.similarity_search(search_query, k=4)
-    context_text = "\n\n".join(
-        f"[来源: {doc.metadata.get('breadcrumbs', '未知')}]\n{doc.page_content}"
-        for doc in retrieved_docs
-    )
+    if not context_text:
+        retrieved_docs = vector_store.similarity_search(search_query, k=4)
+        context_text = "\n\n".join(
+            f"[来源: {doc.metadata.get('breadcrumbs', '未知')}]\n{doc.page_content}"
+            for doc in retrieved_docs
+        )
+        set_cached_context(context_cache_key, context_text)
 
     # 4. 构建 Prompt
     system_prompt = f"""你是一个名为 "{SITE_NAME}" 的专属 AI 助手。
@@ -176,7 +180,7 @@ async def chat_endpoint(
     langchain_messages.append(HumanMessage(content=user_query))
 
     # 5. 模型调用与流式返回
-    llm = ModelFactory.get_reasoning_model(REASONING_PROVIDER, REASONING_MODEL)
+    llm = get_reasoning_model()
 
     async def generate_stream():
         full_response = ""

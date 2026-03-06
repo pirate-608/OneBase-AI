@@ -38,6 +38,50 @@ Keys are passed to Docker containers at runtime via environment variables (`env_
 
 ---
 
+## API Token Authentication
+
+OneBase supports Bearer Token authentication via the `API_TOKEN` environment variable for all API requests.
+
+### Enabling
+
+Set in `.env`:
+
+```bash title=".env"
+# Once set, all /api/* requests (except /api/health) require this token
+API_TOKEN=your-secret-token-here
+```
+
+Leave empty or unset to **skip authentication** (default for local development).
+
+### How It Works
+
+The backend registers an auth middleware after CORS and before rate limiting. Every `/api/*` request (except `/api/health`) must include:
+
+```
+Authorization: Bearer <API_TOKEN>
+```
+
+| Scenario            | Behavior                                                          |
+| :------------------ | :---------------------------------------------------------------- |
+| Correct token       | Request passes through                                            |
+| Missing/wrong token | Returns `401 Unauthorized` with `WWW-Authenticate: Bearer` header |
+| `/api/health`       | Always public, no token required                                  |
+| `API_TOKEN` unset   | All requests pass through (auth disabled)                         |
+
+### Frontend Integration
+
+The frontend manages tokens automatically via the `useAuth.js` composable:
+
+1. On first page load → check `localStorage` for a cached token
+2. If no token → prompt the user to enter one
+3. All API requests use `apiFetch()` which automatically attaches the `Authorization` header
+4. On `401` response → clear cache and re-prompt
+
+!!! tip "Token delivery"
+    `API_TOKEN` is injected into containers via Docker Compose environment variable `${API_TOKEN:-}`. It never appears in images or Compose files.
+
+---
+
 ## CORS Policy
 
 The backend controls allowed frontend origins via the `CORS_ORIGINS` environment variable.
@@ -165,6 +209,7 @@ Before deploying to the public internet, check each item:
 
 - [ ] `.env` is excluded from version control
 - [ ] `POSTGRES_PASSWORD` uses a strong random password
+- [ ] `API_TOKEN` is set to a strong random string
 - [ ] `CORS_ORIGINS` is set to your actual frontend domain (not `*`)
 - [ ] Database port is not exposed to the internet (remove `ports` or configure firewall)
 - [ ] API keys use minimum-privilege policies

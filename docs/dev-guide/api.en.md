@@ -20,6 +20,26 @@ The OneBase backend is built on FastAPI. All endpoints use the `/api` prefix. Th
 
 ---
 
+## Authentication
+
+When the `API_TOKEN` environment variable is non-empty, all endpoints except `/api/health` require a Bearer Token:
+
+```
+Authorization: Bearer <API_TOKEN>
+```
+
+Missing or incorrect token returns:
+
+```json
+// 401 Unauthorized
+{"detail": "Unauthorized"}
+// Header: WWW-Authenticate: Bearer
+```
+
+When `API_TOKEN` is unset, all requests pass through. See [Security Configuration](../user-guide/config/security.en.md#api-token-authentication) for details.
+
+---
+
 ## Health Check
 
 ### GET /api/health
@@ -59,13 +79,13 @@ Knowledge-base-powered streaming chat using Server-Sent Events (SSE).
 }
 ```
 
-| Field                | Type   | Required | Description                             |
-| :------------------- | :----- | :------: | :-------------------------------------- |
-| `session_id`         | string |    —     | Session ID, default `"default-session"` |
-| `messages`           | array  |    ✅     | Message list, last one is current input |
-| `messages[].role`    | string |    ✅     | `"user"` or `"assistant"`               |
-| `messages[].content` | string |    ✅     | Message body                            |
-| `stream`             | bool   |    —     | Stream response, default `true`         |
+| Field                | Type   | Required | Description                                                                |
+| :------------------- | :----- | :------: | :------------------------------------------------------------------------- |
+| `session_id`         | string |    —     | Session ID, default `"default-session"`, only `a-zA-Z0-9_-`, max 128 chars |
+| `messages`           | array  |    ✅     | Message list (min 1), last one is current input                            |
+| `messages[].role`    | string |    ✅     | Only `"user"` or `"assistant"` allowed                                     |
+| `messages[].content` | string |    ✅     | Message body, 1–50000 characters                                           |
+| `stream`             | bool   |    —     | Stream response, default `true`                                            |
 
 **Response** (`text/event-stream`):
 
@@ -129,6 +149,10 @@ Rename a session.
   "title": "Discussion about OneBase"
 }
 ```
+
+| Field   | Type   | Description            |
+| :------ | :----- | :--------------------- |
+| `title` | string | New title, 1–100 chars |
 
 **Response 200:**
 

@@ -38,6 +38,50 @@ DEEPSEEK_API_KEY=sk-...
 
 ---
 
+## API Token 鉴权
+
+OneBase 支持通过 `API_TOKEN` 对所有 API 请求进行 Bearer Token 鉴权。
+
+### 启用方式
+
+在 `.env` 中设置：
+
+```bash title=".env"
+# 设置后所有 /api/* 请求（除 /api/health）均需携带此 Token
+API_TOKEN=your-secret-token-here
+```
+
+留空或不设置则**跳过鉴权**（本地开发默认行为）。
+
+### 工作原理
+
+后端在 CORS 之后、速率限制之前注册鉴权中间件。每个 `/api/*` 请求（`/api/health` 除外）必须携带：
+
+```
+Authorization: Bearer <API_TOKEN>
+```
+
+| 场景               | 行为                                                         |
+| :----------------- | :----------------------------------------------------------- |
+| Token 正确         | 请求正常通过                                                 |
+| Token 缺失/错误    | 返回 `401 Unauthorized`，响应头带 `WWW-Authenticate: Bearer` |
+| `/api/health`      | 始终公开，不需要 Token                                       |
+| `API_TOKEN` 未设置 | 所有请求均放行（等同于关闭鉴权）                             |
+
+### 前端集成
+
+前端通过 `useAuth.js` 组合式函数自动管理 Token：
+
+1. 首次打开页面 → 检查 `localStorage` 是否有缓存 Token
+2. 若无 Token → 弹窗提示用户输入
+3. 所有 API 请求通过 `apiFetch()` 自动附加 `Authorization` 头
+4. 收到 `401` 响应 → 清除缓存、重新弹窗
+
+!!! tip "Token 传递方式"
+    `API_TOKEN` 通过 Docker Compose 环境变量 `${API_TOKEN:-}` 注入容器，不会出现在镜像或 Compose 文件中。
+
+---
+
 ## CORS 跨域策略
 
 后端通过 `CORS_ORIGINS` 环境变量控制允许的前端来源。
@@ -165,6 +209,7 @@ extra_hosts:
 
 - [ ] `.env` 已从版本控制中排除
 - [ ] `POSTGRES_PASSWORD` 使用强随机密码
+- [ ] `API_TOKEN` 已设置为高强度随机字符串
 - [ ] `CORS_ORIGINS` 设置为实际前端域名（非 `*`）
 - [ ] 数据库端口未暴露到公网（移除 `ports` 或配置防火墙）
 - [ ] API 密钥使用最小权限策略

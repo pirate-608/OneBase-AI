@@ -22,7 +22,8 @@ The OneBase backend is a FastAPI application running inside a Docker container, 
 main.py                      # FastAPI entry
 ├── config.py                # Centralized env var reading
 ├── database.py              # SQLAlchemy models + connection management
-├── schemas.py               # Pydantic request models
+├── schemas.py               # Pydantic request models (with input constraints)
+├── deps.py                  # Model / vector store singleton management
 ├── factory.py               # Model factory (copied from CLI package)
 └── routers/
     ├── chat.py              # Chat + session management
@@ -47,6 +48,7 @@ EMBEDDING_PROVIDER     ← engine.embedding.provider
 EMBEDDING_MODEL        ← engine.embedding.model
 FEATURE_CHAT_HISTORY   ← features.chat_history
 FEATURE_FILE_UPLOAD    ← features.file_upload
+API_TOKEN              ← API_TOKEN from .env (optional)
 RUNNING_IN_DOCKER      ← "true"
 ```
 
@@ -78,7 +80,29 @@ app.add_middleware(
 - Default `*` allows all origins (local development)
 - Specified domains enable `allow_credentials`
 
-### 4. Route Registration
+### 4. API Token Auth Middleware
+
+When the `API_TOKEN` environment variable is non-empty, an auth middleware is registered after CORS and before rate limiting:
+
+```python
+_AUTH_WHITELIST = {"/api/health"}
+
+@app.middleware("http")
+async def apply_auth(request, call_next):
+    if request.url.path in _AUTH_WHITELIST or not request.url.path.startswith("/api/"):
+        return await call_next(request)
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer ") or auth[7:] != API_TOKEN:
+        return JSONResponse(status_code=401, content={"detail": "Unauthorized"},
+                            headers={"WWW-Authenticate": "Bearer"})
+    return await call_next(request)
+```
+
+- `/api/health` is whitelisted and always public
+- Non `/api/` prefix requests (static files, SPA) are unaffected
+- When `API_TOKEN` is unset, the entire middleware is skipped
+
+### 5. Route Registration
 
 ```python
 app.include_router(chat.router, prefix="/api")
@@ -90,7 +114,7 @@ if FEATURE_FILE_UPLOAD:
 
 The `upload` route is not registered when `file_upload: false`, completely removing the endpoint.
 
-### 5. Lazy Database Initialization
+### 6. Lazy Database Initialization
 
 The first API request triggers `_init_db()` with retry logic for container startup timing:
 
@@ -175,6 +199,51 @@ async def generate_stream():
 - Format whitelist: `.pdf`, `.txt`, `.md`
 - Feature Flag gate: Returns 403 when `FEATURE_FILE_UPLOAD` is false
 - Error message sanitization: 500 errors only return `"File processing failed"`, details logged
+
+---
+
+## Request Model Constraints (schemas.py)
+
+`schemas.py` uses Pydantic `Field` and `Literal` to strictly validate all inputs:
+
+| Field                        | Constraint                                           |
+| :--------------------------- | :--------------------------------------------------- |
+| `ChatMessage.role`           | `Literal["user", "assistant"]`, rejects other values |
+| `ChatMessage.content`        | `min_length=1, max_length=50000`                     |
+| `ChatRequest.session_id`     | `max_length=128, pattern=^[a-zA-Z0-9_\-]+$`          |
+| `ChatRequest.messages`       | `min_length=1` (at least one message)                |
+| `RenameSessionRequest.title` | `min_length=1, max_length=100`                       |
+
+Requests violating any constraint are automatically rejected by FastAPI with `422 Unprocessable Entity` and detailed error location information.
+
+---
+
+## Model / Vector Store Singletons (deps.py)
+
+`deps.py` provides thread-safe singleton getters, ensuring Embedding models, reasoning models, and PGVector stores are initialized only once during the application lifecycle:
+
+```python
+_lock = threading.Lock()
+_embedding_model = None
+
+def get_embedding_model():
+    global _embedding_model
+    if _embedding_model is None:
+        with _lock:
+            if _embedding_model is None:   # double-checked locking
+                _embedding_model = ModelFactory.get_embedding_model(...)
+    return _embedding_model
+```
+
+**Provided singleton functions:**
+
+| Function                | Description               |
+| :---------------------- | :------------------------ |
+| `get_embedding_model()` | Embedding model instance  |
+| `get_reasoning_model()` | Reasoning LLM instance    |
+| `get_vector_store()`    | PGVector store connection |
+
+Routes in `chat.py` and `upload.py` call these functions to obtain shared instances, avoiding repeated model object creation.
 
 ---
 

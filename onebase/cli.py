@@ -140,6 +140,12 @@ knowledge_base:
 features:
   chat_history: true
   file_upload: true
+performance:
+    redis_cache_enabled: true
+    redis_context_cache_ttl_seconds: 300
+    rate_limit_enabled: true
+    chat_rate_limit_per_minute: 30
+    upload_rate_limit_per_minute: 6
 """
     config_path.write_text(default_yaml, encoding="utf-8")
 
@@ -163,11 +169,15 @@ MODELSCOPE_SDK_TOKEN=
 {_("# ============ Security (optional) ============")}
 {_("# Allowed CORS origins, comma-separated. Default * allows all")}
 # CORS_ORIGINS=http://localhost:3000,https://yourdomain.com
+
+{_("# ============ Redis (optional, for cache/rate-limit) ============")}
+{_("# Keep empty to disable Redis and fallback to in-memory strategy")}
+# REDIS_URL=redis://redis:6379/0
 """
     Path(".env").write_text(env_content, encoding="utf-8")
 
     # Write bootstrap requirements.txt
-    req_content = _(
+    req_content = (
         "# \ud83d\udce6 OneBase Dynamic Dependencies\n"
         "# After editing onebase.yml, run:\n"
         "# onebase get-deps > requirements.txt\n"
@@ -225,6 +235,11 @@ def build(
         False, "--with-xinference", help="Start Xinference container"
     ),
     with_vllm: bool = typer.Option(False, "--with-vllm", help="Start vLLM container"),
+    with_docker_model: bool = typer.Option(
+        False,
+        "--with-docker-model",
+        help="Use Docker Model Runner (Docker Desktop 4.40+)",
+    ),
     use_gpu: bool = typer.Option(
         False,
         "--use-gpu",
@@ -309,11 +324,12 @@ def build(
         with_ollama=with_ollama,
         with_xinference=with_xinference,
         with_vllm=with_vllm,
+        with_docker_model=with_docker_model,
         use_gpu=use_gpu,
     )
     runner.build_compose_file()
 
-    # 动态决定要拉起的容器组
+    # 动态决定要拉起的容器组 (docker-model 使用 provider 类型，Docker 自动管理)
     services_to_start = ["db"]
     if with_ollama:
         services_to_start.append("ollama")
@@ -334,8 +350,8 @@ def build(
         if flags > 0:
             logger.warning(
                 _(
-                    "💡 Note: If this is the first time using a containerized model, the embedding weights may not be downloaded yet. "
-                    "If ingestion fails, start containers with `serve` first to download the model, then run `build`."
+                    "💡 Note: If this is the first time using a containerized model, models will be auto-pulled but the download may take a while. "
+                    "If ingestion fails, wait for the model download to finish and try again."
                 )
             )
 
@@ -419,6 +435,11 @@ def serve(
     with_vllm: bool = typer.Option(
         False, "--with-vllm", help="Bundle vLLM container (max throughput)"
     ),
+    with_docker_model: bool = typer.Option(
+        False,
+        "--with-docker-model",
+        help="Use Docker Model Runner for inference (Docker Desktop 4.40+)",
+    ),
     use_gpu: bool = typer.Option(
         False,
         "--use-gpu",
@@ -433,7 +454,7 @@ def serve(
         logger.error(_("❌ Config file not found. Run `onebase init` first."))
         raise typer.Exit(code=1)
 
-    flags = sum([with_ollama, with_xinference, with_vllm])
+    flags = sum([with_ollama, with_xinference, with_vllm, with_docker_model])
     if flags > 1:
         logger.error(
             _(
@@ -454,6 +475,8 @@ def serve(
             compute_mode = _("Bundled Xinference")
         elif with_vllm:
             compute_mode = _("Bundled vLLM")
+        elif with_docker_model:
+            compute_mode = _("Docker Model Runner")
 
         if use_gpu and flags > 0:
             compute_mode += " [bold green]+ NVIDIA GPU[/bold green]"
@@ -472,23 +495,32 @@ def serve(
         console.print(table)
 
         if with_ollama:
-            logger.warning(
+            logger.info(
                 _(
-                    "💡 First time? Make sure to download a model inside the container: "
-                    "`docker exec -it onebase_ollama ollama run <model>`"
+                    "💡 Ollama models will be pulled automatically on first container startup. "
+                    "This may take a while depending on model size."
                 )
             )
         elif with_xinference:
-            logger.warning(
+            logger.info(
                 _(
-                    "💡 After Xinference starts, visit `http://localhost:9997` to manage models."
+                    "💡 Xinference models will be launched automatically on first container startup. "
+                    "This may take a while depending on model size. "
+                    "You can also visit `http://localhost:9997` to manage models."
                 )
             )
         elif with_vllm:
-            logger.warning(
+            logger.info(
                 _(
-                    "💡 vLLM is configured for the reasoning model in `onebase.yml`. "
-                    "Initial container startup may take a while to download weights."
+                    "💡 vLLM will automatically download model weights on first startup. "
+                    "For gated models (Llama, Mistral, etc.), set HF_TOKEN in your .env file."
+                )
+            )
+        elif with_docker_model:
+            logger.info(
+                _(
+                    "💡 Docker Model Runner will pull and manage models natively. "
+                    "Requires Docker Desktop 4.40+. Models are accessed via the built-in llama.cpp engine."
                 )
             )
 
@@ -498,6 +530,7 @@ def serve(
             with_ollama=with_ollama,
             with_xinference=with_xinference,
             with_vllm=with_vllm,
+            with_docker_model=with_docker_model,
             use_gpu=use_gpu,
         )
 

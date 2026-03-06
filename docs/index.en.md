@@ -24,11 +24,11 @@
   </div>
 </div>
 
-OneBase is a modern, ready-to-use RAG (Retrieval-Augmented Generation) framework scaffold. It encapsulates the complex configuration of vector databases, file parsing, LLM orchestration, and frontend UI rendering into minimal commands. Whether you want to quickly set up a personal knowledge base assistant or deploy an enterprise Q&A system based on private data, OneBase lets you go from zero to production in minutes.
-
-**Core Philosophy: Convention over Configuration**
-
-Simply drop your Markdown or PDF files into the `base/` directory, and OneBase will automatically generate a visual knowledge tree and complete vectorized retrieval.
+<div class="ob-lead">
+  <p>OneBase is a modern, ready-to-use RAG (Retrieval-Augmented Generation) framework scaffold. It encapsulates the complex configuration of vector databases, file parsing, LLM orchestration, and frontend UI rendering into minimal commands. Whether you want to quickly set up a personal knowledge base assistant or deploy an enterprise Q&A system based on private data, OneBase lets you go from zero to production in minutes.</p>
+  <p class="ob-lead__title"><strong>Core Philosophy: Convention over Configuration</strong></p>
+  <p>Simply drop your Markdown or PDF files into <code>base/</code> and OneBase will automatically generate a visual knowledge tree and complete vectorized retrieval.</p>
+</div>
 
 <div class="ob-kpis">
   <div class="ob-kpi"><strong>5 Minutes</strong><br />From init to ready</div>

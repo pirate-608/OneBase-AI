@@ -61,7 +61,7 @@ def _init_db(max_retries: int = 10, retry_interval: float = 2.0):
 
     for attempt in range(1, max_retries + 1):
         try:
-            _engine = create_engine(DB_URL)
+            _engine = create_engine(DB_URL, pool_pre_ping=True)
             # 尝试真正建立一次连接以验证 PG 是否 ready
             with _engine.connect() as conn:
                 conn.execute(text("SELECT 1"))

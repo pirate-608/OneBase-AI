@@ -94,6 +94,28 @@ Edit `onebase.yml` to select your model provider:
     ollama pull nomic-embed-text
     ```
 
+    Or use `--with-ollama` to let OneBase manage the container (models auto-pull on first start):
+    ```bash
+    onebase serve --with-ollama -d
+    ```
+
+=== "Docker Model (Docker Desktop 4.40+)"
+
+    ```yaml
+    engine:
+      reasoning:
+        provider: docker-model
+        model: ai/qwen2.5:7B-Q4_K_M
+      embedding:
+        provider: docker-model
+        model: ai/bge-m3:Q4_K_M
+    ```
+
+    No API key needed. Docker pulls and manages models natively:
+    ```bash
+    onebase serve --with-docker-model -d
+    ```
+
 === "DashScope (Alibaba Cloud)"
 
     ```yaml
@@ -198,14 +220,16 @@ Ensure the NVIDIA driver, CUDA, and [NVIDIA Container Toolkit](https://docs.nvid
 
 ## Command Reference
 
-| Command           | Description                                     |
-| :---------------- | :---------------------------------------------- |
-| `onebase init`    | Initialize a new project                        |
-| `onebase install` | Install all dependencies                        |
-| `onebase build`   | Build the project (chunk + vectorize + package) |
-| `onebase serve`   | Start the service                               |
-| `onebase stop`    | Stop the service                                |
-| `onebase --help`  | Show help                                       |
+| Command                                | Description                                     |
+| :------------------------------------- | :---------------------------------------------- |
+| `onebase init`                         | Initialize a new project                        |
+| `onebase install`                      | Install all dependencies                        |
+| `onebase build`                        | Build the project (chunk + vectorize + package) |
+| `onebase build --with-docker-model`    | Build with Docker Model Runner                  |
+| `onebase serve`                        | Start the service                               |
+| `onebase serve --with-docker-model -d` | Start with Docker Model Runner (detached)       |
+| `onebase stop`                         | Stop the service                                |
+| `onebase --help`                       | Show help                                       |
 
 ---
 

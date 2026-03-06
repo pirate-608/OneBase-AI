@@ -1,12 +1,13 @@
 import { ref } from 'vue'
+import { apiFetch } from './useAuth'
 
 export function useChat() {
   const messages = ref([])
   const isGenerating = ref(false)
-  const sessions = ref([]) 
+  const sessions = ref([])
 
   const generateNewSessionId = () => 'session_' + Math.random().toString(36).substring(2, 10)
-  
+
   const getOrCreateSessionId = () => {
     let sid = localStorage.getItem('onebase_session_id')
     if (!sid) {
@@ -20,7 +21,7 @@ export function useChat() {
   const loadHistory = async (id) => {
     const targetId = id || sessionId.value
     try {
-      const res = await fetch(`/api/history/${targetId}`)
+      const res = await apiFetch(`/api/history/${targetId}`)
       if (res.ok) {
         const history = await res.json()
         if (history.length > 0) {
@@ -34,7 +35,7 @@ export function useChat() {
 
   const fetchSessions = async () => {
     try {
-      const res = await fetch('/api/sessions')
+      const res = await apiFetch('/api/sessions')
       if (res.ok) sessions.value = await res.json()
     } catch (e) { console.error("无法加载会话列表", e) }
   }
@@ -49,17 +50,17 @@ export function useChat() {
     if (sessionId.value === id) return
     sessionId.value = id
     localStorage.setItem('onebase_session_id', id)
-    messages.value = [] 
+    messages.value = []
     await loadHistory(id)
   }
 
   const deleteSession = async (id) => {
     if (!confirm('确定要彻底删除这个对话吗？')) return
     try {
-      const res = await fetch(`/api/history/${id}`, { method: 'DELETE' })
+      const res = await apiFetch(`/api/history/${id}`, { method: 'DELETE' })
       if (res.ok) {
         sessions.value = sessions.value.filter(s => s.id !== id)
-        if (sessionId.value === id) createNewSession() 
+        if (sessionId.value === id) createNewSession()
       }
     } catch (e) { console.error("删除会话失败", e) }
   }
@@ -67,7 +68,7 @@ export function useChat() {
   // 🌟 新增：重命名接口请求
   const renameSession = async ({ id, title }) => {
     try {
-      const res = await fetch(`/api/sessions/${id}`, {
+      const res = await apiFetch(`/api/sessions/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title })
@@ -81,16 +82,16 @@ export function useChat() {
 
   const sendMessage = async (text) => {
     if (isGenerating.value) return
-    
+
     const isFirstMessage = messages.value.filter(m => m.role === 'user').length === 0
-    
+
     messages.value.push({ role: 'user', content: text })
     isGenerating.value = true
     messages.value.push({ role: 'assistant', content: '' })
     const aiMessageIndex = messages.value.length - 1
 
     try {
-      const response = await fetch('/api/chat', {
+      const response = await apiFetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

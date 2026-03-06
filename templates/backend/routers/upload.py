@@ -1,28 +1,25 @@
 import os
 import shutil
+import logging
 import tempfile
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_postgres.vectorstores import PGVector
 
 from config import (
-    SITE_NAME,
-    DB_URL,
-    EMBEDDING_PROVIDER,
-    EMBEDDING_MODEL,
     FEATURE_FILE_UPLOAD,
 )
-from factory import ModelFactory
+from deps import get_vector_store
 
 router = APIRouter()
+logger = logging.getLogger("onebase.backend")
 
 # 🌟 [3-4] 文件上传大小限制，防止资源滥用
 MAX_UPLOAD_SIZE = 20 * 1024 * 1024  # 20MB
 
 
 @router.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
+def upload_file(file: UploadFile = File(...)):
     # 🌟 [Step2] Feature Flag 门控：配置关闭时拒绝上传
     if not FEATURE_FILE_UPLOAD:
         raise HTTPException(status_code=403, detail="文件上传功能已关闭")
@@ -35,7 +32,7 @@ async def upload_file(file: UploadFile = File(...)):
             )
 
         # 🌟 [3-4] 读取内容并检查大小
-        contents = await file.read()
+        contents = file.file.read()
         if len(contents) > MAX_UPLOAD_SIZE:
             raise HTTPException(
                 status_code=413,
@@ -63,27 +60,26 @@ async def upload_file(file: UploadFile = File(...)):
         for chunk in chunks:
             chunk.metadata["breadcrumbs"] = f"User Upload > {file.filename}"
 
-        embeddings = ModelFactory.get_embedding_model(
-            EMBEDDING_PROVIDER, EMBEDDING_MODEL
-        )
-        vector_store = PGVector(
-            embeddings=embeddings,
-            collection_name=SITE_NAME.replace(" ", "_").lower(),
-            connection=DB_URL,
-            use_jsonb=True,
-        )
+        vector_store = get_vector_store()
         vector_store.add_documents(chunks)
 
+        logger.info(
+            "文件上传成功: %s (%d chunks, %d bytes)",
+            file.filename,
+            len(chunks),
+            len(contents),
+        )
         return {"status": "success", "filename": file.filename, "chunks": len(chunks)}
 
     except HTTPException:
         raise  # 上面主动抛的 400/413 直接透传
     except Exception as e:
         # 🌟 [3-5] 生产环境不泄漏内部异常细节，详情写日志
-        import logging
-
-        logging.getLogger("onebase.backend").error(
-            f"文件上传处理失败 [{file.filename}]: {e}", exc_info=True
+        logger.error(
+            "文件上传处理失败 [%s]: %s",
+            file.filename,
+            e,
+            exc_info=True,
         )
         raise HTTPException(
             status_code=500, detail="文件处理失败，请稍后重试或检查文件格式"

@@ -74,7 +74,7 @@ To protect data privacy or save token costs, OneBase provides multiple support o
 Ollama is the most popular lightweight local LLM runner. OneBase defaults to Ollama configuration.
 
 - **Host mode (default):** If Ollama is already installed on your system, just run `onebase serve -d`.
-- **Container mode:** Run `onebase build --with-ollama -g` and `onebase serve --with-ollama -g -d`. The system will automatically launch an Ollama container and set up network mapping. **After the first launch, run `docker exec -it onebase_ollama ollama run <model_name>` to download models.**
+- **Container mode:** Run `onebase build --with-ollama -g` and `onebase serve --with-ollama -g -d`. The system will automatically launch an Ollama container and set up network mapping. **Models are auto-pulled on first startup — no manual download needed.**
 
 ---
 
@@ -91,11 +91,11 @@ Developers often download multi-GB `.safetensors` native weights from ModelScope
     ```
     Then in OneBase's `onebase.yml`, set `engine` to `openai`, and configure in `.env`: `OPENAI_API_BASE=http://host.docker.internal:9997/v1`.
 
-- **Container mode:** Run `onebase build --with-xinference -g` and `onebase serve --with-xinference -g -d`. The Xinference container will start in the background. You can access the `http://localhost:9997` web interface to download and manage ModelScope models.
+- **Container mode:** Run `onebase build --with-xinference -g` and `onebase serve --with-xinference -g -d`. The Xinference container will start in the background. **Models are auto-launched based on your `onebase.yml` configuration.** You can also access the `http://localhost:9997` web interface to manage ModelScope models manually.
 
 ---
 
-## Option 3: vLLM (High Performance, HuggingFace Compatible)
+### Option 3: vLLM (High Performance, HuggingFace Compatible)
 
 vLLM is the best framework for maximum inference performance.
 
@@ -111,6 +111,37 @@ vLLM is the best framework for maximum inference performance.
     ```
     Configure in .env: `OPENAI_API_BASE=http://host.docker.internal:9097/v1`
 
-- **Container mode:** Run `onebase build --with-vllm -g` and `onebase serve --with-vllm -g -d`. On startup, the container will automatically read the model ID from `onebase.yml` and mount the vLLM container for inference!
+- **Container mode:** Run `onebase build --with-vllm -g` and `onebase serve --with-vllm -g -d`. On startup, the container will automatically read the model ID from `onebase.yml` and download weights for inference! For gated models (Llama, Mistral, etc.), set `HF_TOKEN` in your `.env` file.
+
+---
+
+### Option 4: Docker Model Runner (Simplest, Docker Desktop 4.40+)
+
+Docker Model Runner is the built-in native model manager in Docker Desktop 4.40+. No third-party inference frameworks needed — Docker automatically pulls and manages GGUF quantized models.
+
+```yaml title="onebase.yml"
+engine:
+  reasoning:
+    provider: docker-model
+    model: ai/qwen2.5:7B-Q4_K_M
+  embedding:
+    provider: docker-model
+    model: ai/bge-m3:Q4_K_M
+```
+
+```bash
+onebase build --with-docker-model
+onebase serve --with-docker-model -d
+```
+
+Containers access the OpenAI-compatible API directly at `http://model-runner.docker.internal/engines/llama.cpp/v1` — no API key or port mapping required.
+
+!!! tip "Model Name Format"
+    Docker Model Runner uses `ai/` prefixed model names, for example:
+
+    - Reasoning: `ai/qwen2.5:7B-Q4_K_M`, `ai/llama3.2:3B-Q4_K_M`, `ai/deepseek-r1:7B-Q4_K_M`
+    - Embedding: `ai/bge-m3:Q4_K_M`, `ai/nomic-embed-text:v1.5-Q4_K_M`
+
+    Use `docker model list` to view locally cached models, or visit [Docker Hub Models](https://hub.docker.com/u/ai) to browse available models.
 
 ⚠️ **Recommendation:** Never load model weights directly inside the web service container (this would bloat images to tens of GB and easily cause OOM). The correct approach is to "serve the model as a service". We strongly recommend using Xinference or vLLM to manage your downloaded local models and expose them as APIs that OneBase can consume.

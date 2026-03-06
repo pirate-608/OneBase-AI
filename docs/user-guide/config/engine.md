@@ -46,9 +46,10 @@ engine:
 | `modelscope`    | 魔搭社区           |       ✅        |       ✅        | `MODELSCOPE_SDK_TOKEN`                                          |
 | `doubao`        | 字节跳动豆包       |       ✅        |       ✅        | `VOLC_ACCESS_KEY`、`VOLC_SECRET_KEY`、`VOLC_ENGINE_ENDPOINT_ID` |
 | `siliconflow`   | 硅基流动           |       ✅        |       ✅        | `SILICONFLOW_API_KEY`                                           |
+| `docker-model`  | Docker 原生模型    |       ✅        |       ✅        | 无需 Key（Docker Desktop 4.40+）                                |
 
 !!! warning "Embedding 限制"
-    `anthropic`、`deepseek`、`groq` 不提供 Embedding 接口。如果 Reasoning 使用了这些服务商，Embedding 需要搭配其他 provider，例如 `ollama` 或 `dashscope`。
+    `anthropic`、`deepseek`、`groq` 不提供 Embedding 接口。如果 Reasoning 使用了这些服务商，Embedding 需要搭配其他 provider，例如 `ollama`、`dashscope` 或 `docker-model`。
 
 ---
 
@@ -56,19 +57,20 @@ engine:
 
 `model` 字段填写对应服务商的模型 ID。不同服务商的命名规则不同，请参阅各自的 API 文档。常见示例：
 
-| provider      | 推理模型示例                         | 向量模型示例                                       |
-| :------------ | :----------------------------------- | :------------------------------------------------- |
-| `openai`      | `gpt-4o-mini`、`gpt-4o`              | `text-embedding-3-small`、`text-embedding-3-large` |
-| `ollama`      | `deepseek-r1:1.5b`、`llama3.2`       | `nomic-embed-text:v1.5`、`bge-m3`                  |
-| `dashscope`   | `qwen-turbo`、`deepseek-v3`          | `text-embedding-v4`                                |
-| `zhipu`       | `glm-4-flash`、`glm-4`               | `embedding-3`                                      |
-| `anthropic`   | `claude-sonnet-4-20250514`           | —                                                  |
-| `google`      | `gemini-2.0-flash`                   | `text-embedding-004`                               |
-| `deepseek`    | `deepseek-chat`、`deepseek-reasoner` | —                                                  |
-| `qianfan`     | `ERNIE-4.0-8K`                       | `bge-large-zh`                                     |
-| `groq`        | `llama-3.3-70b-versatile`            | —                                                  |
-| `doubao`      | `doubao-1.5-pro-32k`                 | `doubao-embedding`                                 |
-| `siliconflow` | `deepseek-ai/DeepSeek-V3`            | `BAAI/bge-m3`                                      |
+| provider       | 推理模型示例                         | 向量模型示例                                       |
+| :------------- | :----------------------------------- | :------------------------------------------------- |
+| `openai`       | `gpt-4o-mini`、`gpt-4o`              | `text-embedding-3-small`、`text-embedding-3-large` |
+| `ollama`       | `deepseek-r1:1.5b`、`llama3.2`       | `nomic-embed-text:v1.5`、`bge-m3`                  |
+| `dashscope`    | `qwen-turbo`、`deepseek-v3`          | `text-embedding-v4`                                |
+| `zhipu`        | `glm-4-flash`、`glm-4`               | `embedding-3`                                      |
+| `anthropic`    | `claude-sonnet-4-20250514`           | —                                                  |
+| `google`       | `gemini-2.0-flash`                   | `text-embedding-004`                               |
+| `deepseek`     | `deepseek-chat`、`deepseek-reasoner` | —                                                  |
+| `qianfan`      | `ERNIE-4.0-8K`                       | `bge-large-zh`                                     |
+| `groq`         | `llama-3.3-70b-versatile`            | —                                                  |
+| `doubao`       | `doubao-1.5-pro-32k`                 | `doubao-embedding`                                 |
+| `siliconflow`  | `deepseek-ai/DeepSeek-V3`            | `BAAI/bge-m3`                                      |
+| `docker-model` | `ai/qwen2.5:7B-Q4_K_M`               | `ai/bge-m3:Q4_K_M`                                 |
 
 ---
 
@@ -123,12 +125,39 @@ engine:
     model: nomic-embed-text:v1.5
 ```
 
-也可以用 `--with-ollama` 让 OneBase 自动管理 Ollama 容器：
+也可以用 `--with-ollama` 让 OneBase 自动管理 Ollama 容器（模型会在首次启动时自动拉取，无需手动下载）：
 
 ```bash
 onebase build --with-ollama -g
 onebase serve --with-ollama -g -d
 ```
+
+### 本地：Docker Model Runner（最简方案，Docker Desktop 4.40+）
+
+如果你使用的是 Docker Desktop 4.40 及以上版本，可以直接使用 Docker 原生的模型管理器来运行本地大模型，无需安装任何第三方推理框架：
+
+```yaml
+engine:
+  reasoning:
+    provider: docker-model
+    model: ai/qwen2.5:7B-Q4_K_M
+  embedding:
+    provider: docker-model
+    model: ai/bge-m3:Q4_K_M
+```
+
+```bash
+onebase build --with-docker-model
+onebase serve --with-docker-model -d
+```
+
+Docker 会自动通过 `docker model` 拉取和管理模型，后端通过 `http://model-runner.docker.internal/engines/llama.cpp/v1` 直接访问 OpenAI 兼容 API，无需任何 API Key 或额外网络配置。
+
+!!! tip "Docker Model Runner 的优势"
+    - 零配置：无需安装 Ollama / vLLM 等第三方工具
+    - 原生管理：模型由 Docker Desktop 统一管理，与容器生命周期解耦
+    - 内置引擎：使用 llama.cpp 后端，支持 GGUF 量化模型
+    - 无缝网络：容器内直接通过 Docker 内部 DNS 访问，无需端口映射
 
 ### 本地：Xinference / vLLM（OpenAI 兼容方案）
 
@@ -165,7 +194,7 @@ OPENAI_API_KEY=dummy-key
 | `https://api.openai.com/v1` | `https://api.openai.com/v1`           | 云端地址，不处理 |
 | 不填（Ollama 默认）         | `http://host.docker.internal:11434`   | 默认值也会被重写 |
 
-使用 `--with-ollama` / `--with-xinference` / `--with-vllm` 参数时，OneBase 会自动设置容器间内网地址（如 `http://ollama:11434`），此时无需手动配置任何 URL。
+使用 `--with-ollama` / `--with-xinference` / `--with-vllm` / `--with-docker-model` 参数时，OneBase 会自动设置容器间内网地址（如 `http://ollama:11434`），此时无需手动配置任何 URL。
 
 ---
 

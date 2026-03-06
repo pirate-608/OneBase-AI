@@ -24,11 +24,11 @@
   </div>
 </div>
 
-OneBase 是一个开箱即用的现代化 RAG（检索增强生成）框架脚手架。它将复杂的向量数据库配置、文件解析、大模型调度以及前端 UI 渲染封装在极简的命令之中。无论你是想快速搭建一个专属的个人知识库助手，还是想为企业部署一套基于私有数据的问答系统，OneBase 都能让你在几分钟内完成从“0”到“上线”的全过程。
-
-**核心理念：约定大于配置 (Convention over Configuration)**
-
-你只需要把 Markdown 或 PDF 文件丢进 `base/` 目录，OneBase 就会自动为你生成可视化的知识树，并完成向量化检索。
+<div class="ob-lead">
+  <p>OneBase 是一个开箱即用的现代化 RAG（检索增强生成）框架脚手架。它将复杂的向量数据库配置、文件解析、大模型调度以及前端 UI 渲染封装在极简的命令之中。无论你是想快速搭建一个专属的个人知识库助手，还是想为企业部署一套基于私有数据的问答系统，OneBase 都能让你在几分钟内完成从“0”到“上线”的全过程。</p>
+  <p class="ob-lead__title"><strong>核心理念：约定大于配置 (Convention over Configuration)</strong></p>
+  <p>你只需要把 Markdown 或 PDF 文件丢进 <code>base/</code> 目录，OneBase 就会自动为你生成可视化的知识树，并完成向量化检索。</p>
+</div>
 
 <div class="ob-kpis">
   <div class="ob-kpi"><strong>5 分钟</strong><br />从初始化到可用</div>

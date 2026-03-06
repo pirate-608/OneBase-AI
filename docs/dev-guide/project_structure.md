@@ -86,10 +86,11 @@ cli.py
 ```
 templates/
 ├── backend/                # FastAPI 后端应用
-│   ├── main.py             # FastAPI 应用入口，CORS、路由注册、SPA 托管
-│   ├── config.py           # 环境变量读取（DATABASE_URL、provider、feature flags）
+│   ├── main.py             # FastAPI 应用入口，CORS、鉴权、路由注册、SPA 托管
+│   ├── config.py           # 环境变量读取（DATABASE_URL、provider、feature flags、API_TOKEN）
 │   ├── database.py         # SQLAlchemy 模型（chat_messages、chat_session_meta）
-│   ├── schemas.py          # Pydantic 请求/响应模型
+│   ├── schemas.py          # Pydantic 请求/响应模型（带输入约束）
+│   ├── deps.py             # 模型 / 向量库单例管理（线程安全）
 │   ├── Dockerfile          # 后端容器构建文件
 │   ├── requirements.txt    # 后端 Python 依赖（30 个包全版本锁定）
 │   ├── routers/            # 路由模块
@@ -120,8 +121,35 @@ templates/
         │   ├── FilePreview.vue # 文档预览面板（MD 渲染 / PDF 文本提取）
         │   └── TreeNode.vue    # 递归目录树节点
         └── composables/    # 组合式函数
-            └── useChat.js  # 聊天核心逻辑（SSE 解析、会话管理）
+            ├── useChat.js  # 聊天核心逻辑（SSE 解析、会话管理）
+            └── useAuth.js  # API 鉴权（Token 管理、apiFetch 封装）
 ```
+
+---
+
+## tests/ — 测试套件
+
+`tests/` 目录包含全部单元测试，使用 pytest 框架：
+
+```
+tests/
+├── test_config.py          # OneBaseConfig 加载 / 校验
+├── test_factory.py         # ModelFactory provider 验证
+├── test_builder.py         # KnowledgeBuilder 目录扫描 / 解析
+├── test_chunker.py         # DocumentProcessor 切块逻辑
+├── test_rate_limiter.py    # FixedWindowRateLimiter 本地模式
+├── test_schemas.py         # Pydantic 模型约束（role / content / session_id / title）
+└── test_auth.py            # API Token 鉴权中间件（FastAPI TestClient）
+```
+
+运行方式：
+
+```bash
+pip install -e ".[test]"
+pytest -v
+```
+
+详见[测试指南](../about/contributing.md#测试)。
 
 ---
 

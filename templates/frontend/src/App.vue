@@ -50,6 +50,7 @@ import ChatArea from './components/ChatArea.vue'
 
 // 🌟 引入刚刚封装的 Chat 逻辑模块
 import { useChat } from './composables/useChat'
+import { apiFetch } from './composables/useAuth'
 
 // --- Markdown 配置 ---
 const marked = new Marked(
@@ -86,7 +87,7 @@ const {
 onMounted(async () => {
   // 1. 获取目录树
   try {
-    const res = await fetch('/api/tree')
+    const res = await apiFetch('/api/tree')
     if (res.ok) navTree.value = await res.json()
   } catch (e) { console.error("无法加载目录树", e) }
 
@@ -118,7 +119,7 @@ const openFilePreview = async (node) => {
   previewFile.value = node.title
   previewContent.value = '正在加载内容...'
   try {
-    const res = await fetch(`/api/file/${encodeURIComponent(node.path)}`)
+    const res = await apiFetch(`/api/file/${encodeURIComponent(node.path)}`)
     const data = await res.json()
     previewContent.value = data.content
   } catch (e) {
@@ -137,7 +138,7 @@ const handleFileUpload = async (event) => {
   formData.append('file', file)
 
   try {
-    const response = await fetch('/api/upload', { method: 'POST', body: formData })
+    const response = await apiFetch('/api/upload', { method: 'POST', body: formData })
     const result = await response.json()
     
     messages.value.pop() 

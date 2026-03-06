@@ -69,5 +69,17 @@ onebase.yml → CLI reads → Docker env vars injection → Backend conditional 
 3. The backend decides whether to register routes and store conversations based on environment variables
 4. The frontend reads flag states from `/config` and conditionally renders UI components
 
+---
+
+## Relationship to Performance Settings
+
+`features` controls whether a capability is enabled, while `performance` controls how to protect and optimize it after enabling.
+
+- When `features.chat_history` is enabled, also enable `performance.rate_limit_enabled`
+- When `features.file_upload` is enabled, use a lower `performance.upload_rate_limit_per_minute`
+- For repetitive high-frequency queries, enable `performance.redis_cache_enabled` and tune `redis_context_cache_ttl_seconds`
+
+See [Configuration Overview](overview.md) for `performance.*` field details.
+
 !!! tip
     After modifying `features`, you need to re-run `onebase serve` for changes to take effect (no need to re-`build`).

@@ -46,9 +46,10 @@ Each sub-field requires a `provider` (provider identifier) and `model` (model na
 | `modelscope`    | ModelScope            |     ✅     |     ✅     | `MODELSCOPE_SDK_TOKEN`                                          |
 | `doubao`        | ByteDance Doubao      |     ✅     |     ✅     | `VOLC_ACCESS_KEY`, `VOLC_SECRET_KEY`, `VOLC_ENGINE_ENDPOINT_ID` |
 | `siliconflow`   | SiliconFlow           |     ✅     |     ✅     | `SILICONFLOW_API_KEY`                                           |
+| `docker-model`  | Docker Model Runner   |     ✅     |     ✅     | No key needed (Docker Desktop 4.40+)                            |
 
 !!! warning "Embedding Limitations"
-    `anthropic`, `deepseek`, and `groq` do not provide Embedding APIs. If you use these for Reasoning, pair Embedding with another provider such as `ollama` or `dashscope`.
+    `anthropic`, `deepseek`, and `groq` do not provide Embedding APIs. If you use these for Reasoning, pair Embedding with another provider such as `ollama`, `dashscope`, or `docker-model`.
 
 ---
 
@@ -56,19 +57,20 @@ Each sub-field requires a `provider` (provider identifier) and `model` (model na
 
 The `model` field takes the model ID from the corresponding provider. Naming conventions vary — consult each provider's API docs. Common examples:
 
-| provider      | Reasoning Model Examples             | Embedding Model Examples                           |
-| :------------ | :----------------------------------- | :------------------------------------------------- |
-| `openai`      | `gpt-4o-mini`, `gpt-4o`              | `text-embedding-3-small`, `text-embedding-3-large` |
-| `ollama`      | `deepseek-r1:1.5b`, `llama3.2`       | `nomic-embed-text:v1.5`, `bge-m3`                  |
-| `dashscope`   | `qwen-turbo`, `deepseek-v3`          | `text-embedding-v4`                                |
-| `zhipu`       | `glm-4-flash`, `glm-4`               | `embedding-3`                                      |
-| `anthropic`   | `claude-sonnet-4-20250514`           | —                                                  |
-| `google`      | `gemini-2.0-flash`                   | `text-embedding-004`                               |
-| `deepseek`    | `deepseek-chat`, `deepseek-reasoner` | —                                                  |
-| `qianfan`     | `ERNIE-4.0-8K`                       | `bge-large-zh`                                     |
-| `groq`        | `llama-3.3-70b-versatile`            | —                                                  |
-| `doubao`      | `doubao-1.5-pro-32k`                 | `doubao-embedding`                                 |
-| `siliconflow` | `deepseek-ai/DeepSeek-V3`            | `BAAI/bge-m3`                                      |
+| provider       | Reasoning Model Examples             | Embedding Model Examples                           |
+| :------------- | :----------------------------------- | :------------------------------------------------- |
+| `openai`       | `gpt-4o-mini`, `gpt-4o`              | `text-embedding-3-small`, `text-embedding-3-large` |
+| `ollama`       | `deepseek-r1:1.5b`, `llama3.2`       | `nomic-embed-text:v1.5`, `bge-m3`                  |
+| `dashscope`    | `qwen-turbo`, `deepseek-v3`          | `text-embedding-v4`                                |
+| `zhipu`        | `glm-4-flash`, `glm-4`               | `embedding-3`                                      |
+| `anthropic`    | `claude-sonnet-4-20250514`           | —                                                  |
+| `google`       | `gemini-2.0-flash`                   | `text-embedding-004`                               |
+| `deepseek`     | `deepseek-chat`, `deepseek-reasoner` | —                                                  |
+| `qianfan`      | `ERNIE-4.0-8K`                       | `bge-large-zh`                                     |
+| `groq`         | `llama-3.3-70b-versatile`            | —                                                  |
+| `doubao`       | `doubao-1.5-pro-32k`                 | `doubao-embedding`                                 |
+| `siliconflow`  | `deepseek-ai/DeepSeek-V3`            | `BAAI/bge-m3`                                      |
+| `docker-model` | `ai/qwen2.5:7B-Q4_K_M`               | `ai/bge-m3:Q4_K_M`                                 |
 
 ---
 
@@ -123,12 +125,39 @@ engine:
     model: nomic-embed-text:v1.5
 ```
 
-You can also use `--with-ollama` to let OneBase manage the Ollama container:
+You can also use `--with-ollama` to let OneBase manage the Ollama container (models are auto-pulled on first startup — no manual download needed):
 
 ```bash
 onebase build --with-ollama -g
 onebase serve --with-ollama -g -d
 ```
+
+### Local: Docker Model Runner (Simplest, Docker Desktop 4.40+)
+
+If you're running Docker Desktop 4.40 or later, you can use Docker's native model manager to run local LLMs — no third-party inference frameworks required:
+
+```yaml
+engine:
+  reasoning:
+    provider: docker-model
+    model: ai/qwen2.5:7B-Q4_K_M
+  embedding:
+    provider: docker-model
+    model: ai/bge-m3:Q4_K_M
+```
+
+```bash
+onebase build --with-docker-model
+onebase serve --with-docker-model -d
+```
+
+Docker automatically pulls and manages models via `docker model`. The backend accesses the OpenAI-compatible API at `http://model-runner.docker.internal/engines/llama.cpp/v1` — no API key or extra network configuration needed.
+
+!!! tip "Docker Model Runner Advantages"
+    - Zero config: No need to install Ollama, vLLM, or other third-party tools
+    - Native management: Models managed by Docker Desktop, decoupled from container lifecycle
+    - Built-in engine: Uses llama.cpp backend, supports GGUF quantized models
+    - Seamless networking: Containers access models via Docker internal DNS, no port mapping
 
 ### Local: Xinference / vLLM (OpenAI-Compatible)
 
@@ -165,7 +194,7 @@ Since the OneBase backend runs inside a Docker container, accessing local model 
 | `https://api.openai.com/v1` | `https://api.openai.com/v1`           | Cloud URL, unchanged   |
 | Not set (Ollama default)    | `http://host.docker.internal:11434`   | Default also rewritten |
 
-When using `--with-ollama` / `--with-xinference` / `--with-vllm`, OneBase automatically sets internal Docker network addresses (e.g., `http://ollama:11434`), so no manual URL configuration is needed.
+When using `--with-ollama` / `--with-xinference` / `--with-vllm` / `--with-docker-model`, OneBase automatically sets internal Docker network addresses (e.g., `http://ollama:11434`), so no manual URL configuration is needed.
 
 ---
 

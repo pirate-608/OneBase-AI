@@ -138,6 +138,25 @@
     margin-bottom: 0.6rem;
 }
 
+.ob-lead {
+    margin-top: 1.8rem;
+    padding: 1.4rem 1.6rem;
+    border-radius: 18px;
+    border: 1px solid var(--ob-border);
+    background: var(--ob-surface);
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+}
+
+.ob-lead p {
+    margin: 0.6rem 0;
+    color: var(--ob-ink-muted);
+}
+
+.ob-lead__title {
+    font-size: 1.05rem;
+    color: var(--ob-ink);
+}
+
 .ob-card-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

@@ -1,15 +1,57 @@
 import os
-from fastapi import FastAPI
+import uuid
+import time
+import logging
+from contextvars import ContextVar
+from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from config import SITE_NAME, FEATURE_CHAT_HISTORY, FEATURE_FILE_UPLOAD
+from config import (
+    SITE_NAME,
+    FEATURE_CHAT_HISTORY,
+    FEATURE_FILE_UPLOAD,
+    CHAT_RATE_LIMIT_PER_MINUTE,
+    UPLOAD_RATE_LIMIT_PER_MINUTE,
+    API_TOKEN,
+    LOG_FORMAT,
+)
+from rate_limiter import FixedWindowRateLimiter
 
 # 引入我们刚才拆分出来的路由模块
 from routers import chat, upload, knowledge
 
+logger = logging.getLogger("onebase.backend")
+
+# 请求 ID 上下文变量，贯穿单次请求的所有日志
+request_id_var: ContextVar[str] = ContextVar("request_id", default="-")
+
+# 结构化日志配置
+if LOG_FORMAT == "json":
+    import json as _json
+
+    class _JsonFormatter(logging.Formatter):
+        def format(self, record):
+            return _json.dumps(
+                {
+                    "ts": self.formatTime(record),
+                    "level": record.levelname,
+                    "logger": record.name,
+                    "msg": record.getMessage(),
+                    "rid": request_id_var.get("-"),
+                },
+                ensure_ascii=False,
+            )
+
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(_JsonFormatter())
+    logging.getLogger("onebase.backend").handlers = [_handler]
+    logging.getLogger("onebase.backend").setLevel(logging.INFO)
+
 app = FastAPI(title=f"{SITE_NAME} API")
+rate_limiter = FixedWindowRateLimiter()
 
 # 🌟 [3-2] CORS 安全配置：通过环境变量允许用户自定义允许的前端域名
 # 默认 * 允许所有（本地开发友好），生产环境建议在 .env 中设置 CORS_ORIGINS
@@ -27,6 +69,95 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# 🆔 请求 ID 中间件：为每个请求生成唯一标识，便于日志追踪
+@app.middleware("http")
+async def apply_request_id(request: Request, call_next):
+    rid = request.headers.get("x-request-id", uuid.uuid4().hex[:12])
+    request_id_var.set(rid)
+    start = time.perf_counter()
+    response = await call_next(request)
+    elapsed_ms = (time.perf_counter() - start) * 1000
+    response.headers["X-Request-ID"] = rid
+    logger.info(
+        "%s %s %d %.0fms [rid=%s]",
+        request.method,
+        request.url.path,
+        response.status_code,
+        elapsed_ms,
+        rid,
+    )
+    return response
+
+
+# 🔐 Token 鉴权中间件：当 API_TOKEN 被设置时，对所有 /api/* 端点（除 health）进行校验
+_AUTH_WHITELIST = {"/api/health"}
+
+
+@app.middleware("http")
+async def apply_auth(request, call_next):
+    path = request.url.path
+    if API_TOKEN and path.startswith("/api/") and path not in _AUTH_WHITELIST:
+        auth_header = request.headers.get("authorization", "")
+        if not auth_header.startswith("Bearer ") or auth_header[7:] != API_TOKEN:
+            client_ip = request.client.host if request.client else "unknown"
+            logger.warning(
+                "鉴权失败: %s %s 来源=%s [rid=%s]",
+                request.method,
+                path,
+                client_ip,
+                request_id_var.get("-"),
+            )
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "未授权访问，请提供有效的 API Token"},
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    return await call_next(request)
+
+
+@app.middleware("http")
+async def apply_rate_limit(request, call_next):
+    path = request.url.path
+
+    if path == "/api/chat":
+        client_host = request.client.host if request.client else "unknown"
+        allowed, retry_after = rate_limiter.allow(
+            bucket="chat",
+            subject=client_host,
+            limit=CHAT_RATE_LIMIT_PER_MINUTE,
+            window_sec=60,
+        )
+        if not allowed:
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "detail": "请求过于频繁，请稍后再试",
+                    "retry_after": retry_after,
+                },
+                headers={"Retry-After": str(retry_after)},
+            )
+
+    if path == "/api/upload":
+        client_host = request.client.host if request.client else "unknown"
+        allowed, retry_after = rate_limiter.allow(
+            bucket="upload",
+            subject=client_host,
+            limit=UPLOAD_RATE_LIMIT_PER_MINUTE,
+            window_sec=60,
+        )
+        if not allowed:
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "detail": "上传请求过于频繁，请稍后再试",
+                    "retry_after": retry_after,
+                },
+                headers={"Retry-After": str(retry_after)},
+            )
+
+    return await call_next(request)
 
 
 @app.get("/api/health")

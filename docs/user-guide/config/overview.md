@@ -29,24 +29,37 @@ knowledge_base:
 features:
   chat_history: true            # 多轮对话历史记录
   file_upload: true             # 前端实时文档上传
+
+# ---- 性能与稳定性 ----
+performance:
+  redis_cache_enabled: true          # 启用 Redis 上下文缓存
+  redis_context_cache_ttl_seconds: 300  # 上下文缓存 TTL（秒）
+  rate_limit_enabled: true           # 启用接口限流
+  chat_rate_limit_per_minute: 30     # /api/chat 每分钟限流
+  upload_rate_limit_per_minute: 6    # /api/upload 每分钟限流
 ```
 
 ## 配置字段速查表
 
-| 字段                        | 类型           | 必填  | 默认值       | 说明                                            |
-| :-------------------------- | :------------- | :---: | :----------- | :---------------------------------------------- |
-| `site_name`                 | string         |   ✅   | —            | 站点名称，显示在前端标题栏                      |
-| `engine.reasoning.provider` | string         |   ✅   | —            | 推理引擎服务商，见[引擎配置](engine.md)         |
-| `engine.reasoning.model`    | string         |   ✅   | —            | 推理模型名称                                    |
-| `engine.embedding.provider` | string         |   ✅   | —            | 向量引擎服务商                                  |
-| `engine.embedding.model`    | string         |   ✅   | —            | 向量模型名称                                    |
-| `database.type`             | Literal        |   —   | `postgresql` | 数据库类型，当前仅支持 `postgresql`             |
-| `database.vector_store`     | Literal        |   —   | `pgvector`   | 向量存储引擎，当前仅支持 `pgvector`             |
-| `knowledge_base.path`       | string         |   —   | `./base`     | 知识库文档根目录路径                            |
-| `knowledge_base.chunk_size` | int            |   —   | `500`        | 文本切块大小，必须大于 0                        |
-| `knowledge_base.struct`     | string \| dict |   —   | `default`    | 目录结构映射，见[知识库配置](knowledge_base.md) |
-| `features.chat_history`     | bool           |   —   | `true`       | 启用对话历史记录                                |
-| `features.file_upload`      | bool           |   —   | `true`       | 启用前端文件上传                                |
+| 字段                                          | 类型           | 必填  | 默认值       | 说明                                            |
+| :-------------------------------------------- | :------------- | :---: | :----------- | :---------------------------------------------- |
+| `site_name`                                   | string         |   ✅   | —            | 站点名称，显示在前端标题栏                      |
+| `engine.reasoning.provider`                   | string         |   ✅   | —            | 推理引擎服务商，见[引擎配置](engine.md)         |
+| `engine.reasoning.model`                      | string         |   ✅   | —            | 推理模型名称                                    |
+| `engine.embedding.provider`                   | string         |   ✅   | —            | 向量引擎服务商                                  |
+| `engine.embedding.model`                      | string         |   ✅   | —            | 向量模型名称                                    |
+| `database.type`                               | Literal        |   —   | `postgresql` | 数据库类型，当前仅支持 `postgresql`             |
+| `database.vector_store`                       | Literal        |   —   | `pgvector`   | 向量存储引擎，当前仅支持 `pgvector`             |
+| `knowledge_base.path`                         | string         |   —   | `./base`     | 知识库文档根目录路径                            |
+| `knowledge_base.chunk_size`                   | int            |   —   | `500`        | 文本切块大小，必须大于 0                        |
+| `knowledge_base.struct`                       | string \| dict |   —   | `default`    | 目录结构映射，见[知识库配置](knowledge_base.md) |
+| `features.chat_history`                       | bool           |   —   | `true`       | 启用对话历史记录                                |
+| `features.file_upload`                        | bool           |   —   | `true`       | 启用前端文件上传                                |
+| `performance.redis_cache_enabled`             | bool           |   —   | `true`       | 启用 Redis 检索上下文缓存                       |
+| `performance.redis_context_cache_ttl_seconds` | int            |   —   | `300`        | Redis 上下文缓存 TTL（秒）                      |
+| `performance.rate_limit_enabled`              | bool           |   —   | `true`       | 启用后端接口限流                                |
+| `performance.chat_rate_limit_per_minute`      | int            |   —   | `30`         | `/api/chat` 每分钟请求上限                      |
+| `performance.upload_rate_limit_per_minute`    | int            |   —   | `6`          | `/api/upload` 每分钟请求上限                    |
 
 ---
 
@@ -70,6 +83,7 @@ features:
 | `GROQ_API_KEY`              | Groq 密钥           |   ⚡   | provider 为 `groq` 时必填        |
 | `QIANFAN_AK` / `QIANFAN_SK` | 百度千帆密钥对      |   ⚡   | provider 为 `qianfan` 时必填     |
 | `SILICONFLOW_API_KEY`       | 硅基流动密钥        |   ⚡   | provider 为 `siliconflow` 时必填 |
+| `REDIS_URL`                 | Redis 连接地址      |   —   | 用于上下文缓存和分布式限流       |
 
 ⚡ = 使用对应 provider 时必填
 

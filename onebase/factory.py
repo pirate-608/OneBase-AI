@@ -23,6 +23,7 @@ class ModelFactory:
     SUPPORTED_REASONING = [
         "openai",
         "ollama",
+        "docker-model",
         "dashscope",
         "zhipu",
         "anthropic",
@@ -38,6 +39,7 @@ class ModelFactory:
     SUPPORTED_EMBEDDING = [
         "openai",
         "ollama",
+        "docker-model",
         "dashscope",
         "zhipu",
         "google",
@@ -77,6 +79,22 @@ class ModelFactory:
                 os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
             )
             return ChatOllama(model=model_name, base_url=base_url, streaming=True)
+
+        elif provider == "docker-model":
+            # Docker Model Runner (Docker Desktop 4.40+)
+            # 通过 Docker 原生模型管理器提供 OpenAI 兼容接口
+            from langchain_openai import ChatOpenAI
+
+            base_url = os.getenv(
+                "OPENAI_API_BASE",
+                "http://model-runner.docker.internal/engines/llama.cpp/v1",
+            )
+            return ChatOpenAI(
+                model=model_name,
+                streaming=True,
+                base_url=base_url,
+                api_key=os.getenv("OPENAI_API_KEY", "dummy-key"),
+            )
 
         elif provider == "dashscope":
             # 💡 修正：阿里通义千问原生接口真实类名为 ChatTongyi
@@ -206,6 +224,20 @@ class ModelFactory:
                 os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
             )
             return OllamaEmbeddings(model=model_name, base_url=base_url)
+
+        elif provider == "docker-model":
+            # Docker Model Runner (Docker Desktop 4.40+)
+            from langchain_openai import OpenAIEmbeddings
+
+            base_url = os.getenv(
+                "OPENAI_API_BASE",
+                "http://model-runner.docker.internal/engines/llama.cpp/v1",
+            )
+            return OpenAIEmbeddings(
+                model=model_name,
+                api_key=os.getenv("OPENAI_API_KEY", "dummy-key"),
+                base_url=base_url,
+            )
 
         elif provider == "dashscope":
             # 阿里通义原生 Embedding
