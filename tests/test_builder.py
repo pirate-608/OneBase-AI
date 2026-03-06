@@ -6,14 +6,20 @@ from onebase.builder import KnowledgeBuilder
 
 
 class TestBuilderAutoScan:
-    def test_auto_scan_base_dir(self):
-        """Auto-scan the project's own base/ directory."""
-        base = Path(__file__).resolve().parent.parent / "base"
-        builder = KnowledgeBuilder(str(base))
+    def test_auto_scan_base_dir(self, tmp_path):
+        """Auto-scan a directory with nested structure."""
+        (tmp_path / "overview.md").write_text("# Overview", encoding="utf-8")
+        section = tmp_path / "section1"
+        section.mkdir()
+        (section / "k1.txt").write_text("knowledge", encoding="utf-8")
+        builder = KnowledgeBuilder(str(tmp_path))
         # struct should be auto-generated (not "default" string)
         assert isinstance(builder.struct, dict)
         # overview.md should appear
         assert "overview" in builder.struct
+        # nested file should appear under section
+        assert "section1" in builder.struct
+        assert "k1" in builder.struct["section1"]
 
     def test_auto_scan_ignores_hidden(self, tmp_path):
         """Hidden files/dirs should be excluded from scan."""
