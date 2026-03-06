@@ -35,6 +35,8 @@ test = [
     "fastapi>=0.100",
     "httpx>=0.24",
     "python-multipart>=0.0.5",
+    "langchain-community>=0.2.0",
+    "langchain-text-splitters>=0.2.0",
 ]
 
 # 🚀 核心魔法：将代码注册为系统命令
