@@ -78,6 +78,7 @@ Thumbs.db
 *.log
 temp/
 test.md
+WORKS.md
 
 # mkdocs构建产物
 site/
