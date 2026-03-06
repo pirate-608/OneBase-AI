@@ -6,6 +6,8 @@
 
 [![PyPI Version][pypi-v-image]][pypi-v-link]
 ![License](https://img.shields.io/github/license/pirate-608/OneBase-AI)
+[![中文](https://img.shields.io/badge/🇨🇳_中文-当前-blue)](README.md)
+[![English](https://img.shields.io/badge/🇺🇸_English-Available-green)](README.en.md)
 
 ## 🌟 项目简介
 OneBase 是一个开箱即用的现代化 RAG（检索增强生成）框架脚手架。它将复杂的向量数据库配置、文件解析、大模型调度以及前端 UI 渲染封装在极简的命令之中。无论你是想快速搭建一个专属的个人知识库助手，还是想为企业部署一套基于私有数据的问答系统，OneBase 都能让你在几分钟内完成从“0”到“上线”的全过程。
