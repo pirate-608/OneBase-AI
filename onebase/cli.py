@@ -178,7 +178,7 @@ MODELSCOPE_SDK_TOKEN=
 
     # Write bootstrap requirements.txt
     req_content = (
-        "# \ud83d\udce6 OneBase Dynamic Dependencies\n"
+        "# \U0001f4e6 OneBase Dynamic Dependencies\n"
         "# After editing onebase.yml, run:\n"
         "# onebase get-deps > requirements.txt\n"
         "# Then:\n"
