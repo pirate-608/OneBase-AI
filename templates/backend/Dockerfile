@@ -21,5 +21,5 @@ COPY static ./static
 # 暴露 FastAPI 运行的 8000 端口
 EXPOSE 8000
 
-# 启动 Uvicorn 服务器
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# 启动 Uvicorn 服务器（2 workers 提升并发容错）
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
