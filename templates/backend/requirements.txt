@@ -15,7 +15,6 @@ langchain-google-vertexai==3.2.2
 langchain-deepseek==1.0.1
 langchain-ollama==1.0.1
 langchain-groq==1.1.2
-langchain-modelscope-integration==0.1.1
 dashscope==1.25.12
 zhipuai==2.1.5.20250825
 qianfan==0.4.12.3
