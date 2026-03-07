@@ -54,24 +54,29 @@
 
 ### P4 — 远期规划
 
-| 编号 | 任务               | 状态  | 目标                                           | 难度  | 收益  |
-| :--- | :----------------- | :---: | :--------------------------------------------- | :---: | :---: |
-| P4#1 | 配置 schema 版本号 |   ⬚   | onebase.yml 增加 version 字段，兼容迁移        |  低   |  中   |
-| P4#2 | Alembic 数据库迁移 |   ⬚   | 替代 create_all()，支持 schema 演进            |  中   |  高   |
-| P4#3 | 数据保留策略       |   ⬚   | 聊天历史 TTL / 归档机制                        |  中   |  中   |
-| P4#4 | 密钥轮换机制       |   ⬚   | API_TOKEN 过期 + 刷新流程                      |  中   |  中   |
-| P4#5 | 前端无障碍         |   ⬚   | ARIA 标签、键盘导航                            |  低   |  中   |
-| P4#6 | 多用户支持         |   ⬚   | 用户隔离、权限模型                             |  高   |  高   |
-| P4#7 | 全异步架构改造     |   ⬚   | SQLAlchemy async + asyncpg / httpx AsyncClient |  高   |  高   |
+| 编号 | 任务               | 状态  | 目标                                              | 难度  | 收益  |
+| :--- | :----------------- | :---: | :------------------------------------------------ | :---: | :---: |
+| P4#1 | 配置 schema 版本号 |   ⬚   | onebase.yml 增加 version 字段，兼容迁移           |  低   |  中   |
+| P4#2 | Alembic 数据库迁移 |   ⬚   | 替代 create_all()，支持 schema 演进               |  中   |  高   |
+| P4#3 | 数据保留策略       |   ⬚   | 聊天历史 TTL / 归档机制                           |  中   |  中   |
+| P4#4 | 密钥轮换机制       |   ⬚   | API_TOKEN 过期 + 刷新流程                         |  中   |  中   |
+| P4#5 | 前端无障碍         |   ⬚   | ARIA 标签、键盘导航                               |  低   |  中   |
+| P4#6 | 多用户支持         |   ⬚   | 用户隔离、权限模型                                |  高   |  高   |
+| P4#7 | 全异步架构改造     |   ⬚   | SQLAlchemy async + asyncpg / LangChain async APIs |  高   |  中   |
 
 **P4#7 说明**：彻底拥抱异步生态，消除 `run_in_threadpool` workaround。需改造：
-- `database.py` — `AsyncSession`, `create_async_engine`
+- `database.py` — `AsyncSession`, `create_async_engine`, `asyncpg` driver
 - `deps.py` — 单例改为 async 初始化
 - 所有路由 — `await db.commit()`, `await vector_store.asimilarity_search()`
-- 向量存储 — 检查 LangChain 是否支持 PGVector 异步，或自建 asyncpg 客户端
+- 向量存储 — 使用 LangChain 1.x 的原生异步接口（`asimilarity_search`, `aadd_documents` 等）
 - HTTP 客户端 — Ollama/Xinference SDK 检查是否有 httpx 后端
 
-**风险**：Breaking Change，需全面回归测试。LangChain 异步支持不完整，部分功能可能需自建适配层。建议在分支中完整验证后再合并主线。
+**难点评估（风险降级：高→中）：**
+1. **SQLAlchemy async 迁移成本**：所有 Session 操作从同步改为异步，涉及 database.py + 所有路由 + 86 个测试用例
+2. **测试框架改造**：需切换到 `pytest-asyncio`，重写所有 DB 相关 fixtures 和测试用例
+3. **收益 ROI 分析**：目前 `run_in_threadpool` 方案已消除性能隐患（event loop 不再阻塞），除非面临极高并发（1000+ RPS），全异步改造的紧迫性较低
+
+**澄清**：~~需等 LangChain 异步生态成熟~~（已过时）。**LangChain 1.x 的异步支持已经完整**（Runnable 协议的 `ainvoke`/`astream`/`abatch`，VectorStore 的 `asimilarity_search` 等），不存在"等生态成熟"的问题。唯一的挑战是 **SQLAlchemy 迁移工作量** 和 **测试覆盖保障**，属于工程投入问题而非技术可行性问题。
 
 ---
 
@@ -109,6 +114,20 @@
 - 修复：用 `run_in_threadpool()` 包裹同步调用，移入工作线程执行
 - `templates/backend/Dockerfile` — uvicorn 改为 `--workers 2` 增加并发容错
 - 新增 P3#6（CPU 密集型线程池）、P3#7（健康检查监控）、P4#7（全异步架构改造）到 WORKS.md
+
+**技术评估更正：**
+
+- P4#7 难度从"高→中"，风险评估更正：LangChain 1.x 异步支持已完整（Runnable 协议 `ainvoke`/`astream`/`abatch`，VectorStore `asimilarity_search` 等），不存在"等生态成熟"的问题
+- 真正的挑战是 **SQLAlchemy async 迁移成本**（AsyncSession + asyncpg）+ 86 个测试用例改造，属于工程投入问题而非技术可行性问题
+- 当前 `run_in_threadpool` workaround 已消除性能隐患，全异步改造 ROI 较低（除非 1000+ RPS 高并发场景）
+
+**VectorStore 异步化（P3.5 渐进式优化）：**
+
+- `templates/backend/routers/chat.py` — 向量检索从 `run_in_threadpool(vector_store.similarity_search, ...)` 改为 LangChain 原生异步 `await vector_store.asimilarity_search(query, k=4)`
+- 移除未使用的 `import asyncio`
+- `run_in_threadpool` 保留（仍用于 `db.commit()` 同步操作）
+- `templates/backend/routers/upload.py` — 保持同步端点不变（`def upload_file`），FastAPI 自动在线程池中运行，改 async 反而会阻塞事件循环（文件 I/O + PDF 解析均为同步操作）
+- 策略决策：**SQLAlchemy 全异步迁移暂缓**（成本 86 测试改造 vs 收益 ROI 不匹配），仅对 LangChain VectorStore 调用做渐进式异步化
 
 #### 2026-03-06 — P2 生产就绪（3 项）
 

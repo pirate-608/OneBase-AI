@@ -1,7 +1,6 @@
 import json
 import hashlib
 import logging
-import asyncio
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from fastapi.concurrency import run_in_threadpool
@@ -150,7 +149,7 @@ async def chat_endpoint(
         context_anchor = last_ai_msg[:200] if last_ai_msg else ""
         search_query = f"背景语境: {context_anchor}\n用户问题: {user_query}"
 
-    # 3. 向量检索（同步调用放入线程池，避免阻塞事件循环）
+    # 3. 向量检索（LangChain 原生异步接口）
     collection_name = SITE_NAME.replace(" ", "_").lower()
     vector_store = get_vector_store()
 
@@ -158,9 +157,7 @@ async def chat_endpoint(
     context_text = get_cached_context(context_cache_key)
 
     if not context_text:
-        retrieved_docs = await run_in_threadpool(
-            vector_store.similarity_search, search_query, 4
-        )
+        retrieved_docs = await vector_store.asimilarity_search(search_query, k=4)
         context_text = "\n\n".join(
             f"[来源: {doc.metadata.get('breadcrumbs', '未知')}]\n{doc.page_content}"
             for doc in retrieved_docs
