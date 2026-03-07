@@ -396,11 +396,9 @@ class DockerRunner:
         # build 命令已单独调用过 build_compose_file()，但 serve 走 up() 入口时需要这里生成
         self.build_compose_file(use_remote_image)
 
-        cmd = ["docker", "compose", "-f", str(self.compose_file), "up"]
+        cmd = ["docker", "compose", "-f", str(self.compose_file), "up", "-d"]
         if not use_remote_image:
             cmd.append("--build")
-        if detach:
-            cmd.append("-d")
 
         try:
             logger.debug(f"Executing: {' '.join(cmd)}")

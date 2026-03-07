@@ -161,10 +161,7 @@ POSTGRES_DB=onebase_db
 
 {_("# ============ API Keys ============")}
 {_("# OpenAI / DeepSeek API Key (leave empty if using local Ollama only)")}
-OPENAI_API_KEY=
-
-{_("# ModelScope SDK Token (for online model inference)")}
-MODELSCOPE_SDK_TOKEN=
+{_("# For example: OPENAI_API_KEY=sk-xxxxxx)")}
 
 {_("# ============ Security (optional) ============")}
 {_("# Allowed CORS origins, comma-separated. Default * allows all")}
@@ -548,16 +545,21 @@ def serve(
             )
             runner.up(detach=detach)
 
-        if detach:
-            console.print(
-                Panel.fit(
-                    _(
-                        "🎉 OneBase is running!\n\n"
-                        "🌐 URL: [bold underline cyan]http://localhost:{port}[/bold underline cyan]\n"
-                        "🛑 Stop: run [bold red]onebase stop[/bold red]"
-                    ).format(port=port),
-                    title="Status: Online",
-                    border_style="green",
+        console.print(
+            Panel.fit(
+                _(
+                    "🎉 OneBase is running!\n\n"
+                    "🌐 URL: [bold underline cyan]http://localhost:{port}[/bold underline cyan]\n"
+                    "🛑 Stop: run [bold red]onebase stop[/bold red]"
+                ).format(port=port),
+                title="Status: Online",
+                border_style="green",
+            )
+        )
+        if not detach:
+            logger.info(
+                _(
+                    "📋 Logs: run [bold]docker compose -f .onebase/docker-compose.yml logs -f[/bold]"
                 )
             )
 
