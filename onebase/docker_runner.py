@@ -73,14 +73,26 @@ class DockerRunner:
         }
 
     def _generate_compose_dict(self, use_remote_image: bool = False) -> Dict[str, Any]:
+        import re
         from .db import get_db_credentials, build_db_url
 
         creds = get_db_credentials()
         # Docker Compose 内部网络中，后端通过服务名 "db" 访问数据库
         db_url = build_db_url(host_override="db")
 
+        # 用 site_name 生成项目隔离的卷名前缀，防止多项目共用同名卷导致凭据冲突
+        _slug = re.sub(
+            r"[^a-z0-9]+",
+            "_",
+            (self.config.site_name if self.config else "onebase").lower(),
+        ).strip("_")
+        vol_pg = f"{_slug}_pgdata"
+        vol_ollama = f"{_slug}_ollama_data"
+        vol_xinfer = f"{_slug}_xinference_data"
+        vol_vllm = f"{_slug}_vllm_data"
+
         services = {}
-        volumes_dict = {"pgdata": None}
+        volumes_dict = {vol_pg: None}
 
         # 1. 数据库服务
         if self.config and self.config.database.type == "postgresql":
@@ -93,7 +105,7 @@ class DockerRunner:
                     "POSTGRES_DB": creds["dbname"],
                 },
                 "ports": [f"{creds['port']}:5432"],
-                "volumes": ["pgdata:/var/lib/postgresql/data"],
+                "volumes": [f"{vol_pg}:/var/lib/postgresql/data"],
                 "healthcheck": {
                     "test": [
                         "CMD-SHELL",
@@ -202,7 +214,7 @@ class DockerRunner:
                     "container_name": "onebase_ollama",
                     "ports": ["11434:11434"],
                     "volumes": [
-                        "ollama_data:/root/.ollama",
+                        f"{vol_ollama}:/root/.ollama",
                         "./backend/ollama-entrypoint.sh:/entrypoint.sh",
                     ],
                     "entrypoint": ["/bin/bash", "/entrypoint.sh"],
@@ -218,7 +230,7 @@ class DockerRunner:
                 services["backend"]["depends_on"]["ollama"] = {
                     "condition": "service_started"
                 }
-                volumes_dict["ollama_data"] = None
+                volumes_dict[vol_ollama] = None
 
             elif self.with_xinference:
                 # Collect model names for auto-launch
@@ -239,7 +251,7 @@ class DockerRunner:
                     "container_name": "onebase_xinference",
                     "ports": ["9997:9997"],
                     "volumes": [
-                        "xinference_data:/root/.xinference",
+                        f"{vol_xinfer}:/root/.xinference",
                         "./backend/xinference-entrypoint.sh:/entrypoint.sh",
                     ],
                     "entrypoint": ["/bin/bash", "/entrypoint.sh"],
@@ -256,7 +268,7 @@ class DockerRunner:
                 services["backend"]["depends_on"]["xinference"] = {
                     "condition": "service_started"
                 }
-                volumes_dict["xinference_data"] = None
+                volumes_dict[vol_xinfer] = None
 
             elif self.with_vllm:
                 # 从配置文件读取模型名，传给 vLLM entrypoint
@@ -268,7 +280,7 @@ class DockerRunner:
                     "container_name": "onebase_vllm",
                     "ports": ["8001:8000"],
                     "volumes": [
-                        "vllm_data:/root/.cache/huggingface",
+                        f"{vol_vllm}:/root/.cache/huggingface",
                         "./backend/vllm-entrypoint.sh:/entrypoint.sh",
                     ],
                     "entrypoint": ["/bin/bash", "/entrypoint.sh"],
@@ -290,7 +302,7 @@ class DockerRunner:
                 services["backend"]["depends_on"]["vllm"] = {
                     "condition": "service_started"
                 }
-                volumes_dict["vllm_data"] = None
+                volumes_dict[vol_vllm] = None
 
             elif self.with_docker_model:
                 # Docker Model Runner — 使用 Docker 原生模型管理 (Docker Desktop 4.40+)
