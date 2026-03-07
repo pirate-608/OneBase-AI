@@ -38,24 +38,40 @@
 
 ### P3 — 体验优化（待定）
 
-| 编号 | 任务              | 状态  | 目标                               |
-| :--- | :---------------- | :---: | :--------------------------------- |
-| P3#1 | 前端错误提示      |   ⬚   | toast/modal 弹窗替代 console.error |
-| P3#2 | 前端重试 + 加载态 |   ⬚   | 网络失败自动重试、骨架屏/spinner   |
-| P3#3 | 会话/消息分页     |   ⬚   | 大量会话时分页加载，避免性能问题   |
-| P3#4 | 文档补充          |   ⬚   | 故障排除、API 错误码参考、监控指南 |
-| P3#5 | 数据库索引优化    |   ⬚   | created_at 索引、查询性能调优      |
+| 编号 | 任务                     | 状态  | 目标                                            | 难度  | 收益  |
+| :--- | :----------------------- | :---: | :---------------------------------------------- | :---: | :---: |
+| P3#1 | 前端错误提示             |   ⬚   | toast/modal 弹窗替代 console.error              |  低   |  中   |
+| P3#2 | 前端重试 + 加载态        |   ⬚   | 网络失败自动重试、骨架屏/spinner                |  低   |  中   |
+| P3#3 | 会话/消息分页            |   ⬚   | 大量会话时分页加载，避免性能问题                |  中   |  中   |
+| P3#4 | 文档补充                 |   ⬚   | 故障排除、API 错误码参考、监控指南              |  低   |  高   |
+| P3#5 | 数据库索引优化           |   ⬚   | created_at 索引、查询性能调优                   |  低   |  中   |
+| P3#6 | CPU 密集型操作线程池隔离 |   ⬚   | chunker/indexer 使用 ProcessPoolExecutor        |  中   |  中   |
+| P3#7 | 健康检查监控增强         |   ⬚   | /api/health 超时告警、独立探针、Prometheus 指标 |  低   |  中   |
+
+**P3#6 说明**：当前已用 `run_in_threadpool` 隔离 I/O 密集型（DB、embedding API），但 `chunker.py` 的大文档切块、`indexer.py` 的向量化是 CPU 密集型，应改用 `ProcessPoolExecutor` 绕过 GIL，提升 `build` 命令性能。
+
+**P3#7 说明**：健康检查是"煤矿金丝雀"，应加超时监控（如 5s still pending = 事件循环异常）。可集成 Prometheus `/metrics` 端点暴露响应时间分布。
 
 ### P4 — 远期规划
 
-| 编号 | 任务               | 状态  | 目标                                    |
-| :--- | :----------------- | :---: | :-------------------------------------- |
-| P4#1 | 配置 schema 版本号 |   ⬚   | onebase.yml 增加 version 字段，兼容迁移 |
-| P4#2 | Alembic 数据库迁移 |   ⬚   | 替代 create_all()，支持 schema 演进     |
-| P4#3 | 数据保留策略       |   ⬚   | 聊天历史 TTL / 归档机制                 |
-| P4#4 | 密钥轮换机制       |   ⬚   | API_TOKEN 过期 + 刷新流程               |
-| P4#5 | 前端无障碍         |   ⬚   | ARIA 标签、键盘导航                     |
-| P4#6 | 多用户支持         |   ⬚   | 用户隔离、权限模型                      |
+| 编号 | 任务               | 状态  | 目标                                           | 难度  | 收益  |
+| :--- | :----------------- | :---: | :--------------------------------------------- | :---: | :---: |
+| P4#1 | 配置 schema 版本号 |   ⬚   | onebase.yml 增加 version 字段，兼容迁移        |  低   |  中   |
+| P4#2 | Alembic 数据库迁移 |   ⬚   | 替代 create_all()，支持 schema 演进            |  中   |  高   |
+| P4#3 | 数据保留策略       |   ⬚   | 聊天历史 TTL / 归档机制                        |  中   |  中   |
+| P4#4 | 密钥轮换机制       |   ⬚   | API_TOKEN 过期 + 刷新流程                      |  中   |  中   |
+| P4#5 | 前端无障碍         |   ⬚   | ARIA 标签、键盘导航                            |  低   |  中   |
+| P4#6 | 多用户支持         |   ⬚   | 用户隔离、权限模型                             |  高   |  高   |
+| P4#7 | 全异步架构改造     |   ⬚   | SQLAlchemy async + asyncpg / httpx AsyncClient |  高   |  高   |
+
+**P4#7 说明**：彻底拥抱异步生态，消除 `run_in_threadpool` workaround。需改造：
+- `database.py` — `AsyncSession`, `create_async_engine`
+- `deps.py` — 单例改为 async 初始化
+- 所有路由 — `await db.commit()`, `await vector_store.asimilarity_search()`
+- 向量存储 — 检查 LangChain 是否支持 PGVector 异步，或自建 asyncpg 客户端
+- HTTP 客户端 — Ollama/Xinference SDK 检查是否有 httpx 后端
+
+**风险**：Breaking Change，需全面回归测试。LangChain 异步支持不完整，部分功能可能需自建适配层。建议在分支中完整验证后再合并主线。
 
 ---
 
@@ -64,6 +80,35 @@
 ---
 
 ### 变更日志
+
+#### 2026-03-07 — CI 依赖修复 + Docker 卷隔离 + 事件循环阻塞修复
+
+**CI 依赖修复：**
+
+- `pyproject.toml` — test deps 添加 `langchain-community`, `langchain-text-splitters`（chunker.py 顶层导入）
+- `tests/test_builder.py` — 改用 `tmp_path` 替代 gitignored `base/` 目录
+- `pyproject.toml` + `templates/backend/requirements.txt` — 修复 `requests` 版本冲突（>=2.32.5）
+- `templates/backend/requirements.txt` — 删除 `langchain-modelscope-integration`（与 langchain-core 1.x 冲突）
+- `templates/backend/requirements.txt` — 全部依赖精确锁定 `==` 版本，消除 pip 回溯爆炸
+- `onebase/cli.py` — 修复 `\ud83d\udce6` surrogate pair → `\U0001F4E6`
+- `pyproject.toml` + `templates/backend/requirements.txt` — 版本 bump 到 0.1.4，langchain 生态升级到 1.x
+- `pyproject.toml` — `langchain-community`, `langchain-text-splitters` 移入核心依赖（chunker.py 导入）
+
+**Docker 卷隔离：**
+
+- `onebase/docker_runner.py` — 卷名从硬编码 `pgdata` 改为项目隔离 `{site_name}_pgdata`（同样应用到 `ollama_data`, `xinference_data`, `vllm_data`），防止多项目密码冲突
+
+**服务启动修复：**
+
+- `onebase/docker_runner.py` — `up()` 始终传 `-d`（容器 detach），避免阻塞
+- `onebase/cli.py` — Status panel 从 `if detach:` 分支移到无条件输出，非 detach 模式追加查看日志提示
+
+**事件循环阻塞修复（关键）：**
+
+- `templates/backend/routers/chat.py` — `async def chat_endpoint` 中同步调用 `db.commit()` 和 `vector_store.similarity_search()` 导致 uvicorn 单事件循环冻结，表现为 8000 端口完全不响应
+- 修复：用 `run_in_threadpool()` 包裹同步调用，移入工作线程执行
+- `templates/backend/Dockerfile` — uvicorn 改为 `--workers 2` 增加并发容错
+- 新增 P3#6（CPU 密集型线程池）、P3#7（健康检查监控）、P4#7（全异步架构改造）到 WORKS.md
 
 #### 2026-03-06 — P2 生产就绪（3 项）
 
