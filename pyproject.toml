@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "onebase-ai"  # 在 PyPI 上的包名，建议加个后缀防止与已有包冲突
-version = "0.1.4"  # 遵循语义化版本控制
+version = "0.1.5"  # 遵循语义化版本控制
 description = "像配置静态网站一样，一键构建与部署 AI 动态服务 (RAG 底座)"
 readme = "README.md"
 authors = [

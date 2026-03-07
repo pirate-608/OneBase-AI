@@ -15,9 +15,22 @@ $ onebase --version
 OneBase CLI, version 0.1.2
 ```
 
+## Version 0.1.5 (2026-03-07)
+
+*   Fix blockage issue when sending requests to the models.
+
+## Version 0.1.4 (2026-03-06)
+
+*   Fixed a error when execute `onebase init` command.
+
+## Version 0.1.3 (2026-03-05)
+
+*   Fixed a bug where the `--with` parameter was not working properly
+
+
 ## Version 0.1.2 (2026-03-02)
 
-### Fixes
+### Fixed
 
 *   Fixed local model incompatibility issues
 *   Fixed backend I/O blocking issues
