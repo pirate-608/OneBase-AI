@@ -1,0 +1,40 @@
+# .github/workflows/mirror-to-gitee.yml
+name: Mirror to Gitee
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  mirror-to-gitee:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout GitHub repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 拉取所有历史，确保同步完整
+
+      - name: Configure Git identity
+        run: |
+          git config --global user.name "${{ secrets.GITEE_USERNAME }}"
+          git config --global user.email "huangmaidou608@outlook.com"  # 改为你 Gitee 绑定的邮箱
+
+      - name: Add Gitee remote repo
+        run: |
+          git remote add gitee https://${{ secrets.GITEE_USERNAME }}:${{ secrets.GITEE_TOKEN }}@gitee.com/${{ secrets.GITEE_USERNAME }}/OneBase-AI.git
+
+      - name: Pull Gitee latest code (避免冲突)
+        run: |
+          # 先拉取 Gitee 最新代码，解决本地与远程的冲突
+          git pull gitee main --rebase || true  # 冲突时自动跳过（或手动处理）
+
+      - name: Push to Gitee (移除强制推送)
+        run: |
+          # 移除 --force，仅推送增量提交
+          git push --tags gitee 'refs/heads/*:refs/heads/*'
+          
+          # 重试逻辑保留，但移除 --force
+          if [ $? -ne 0 ]; then
+            echo "第一次推送失败，重试..."
+            git push --tags gitee 'refs/heads/*:refs/heads/*'
+          fi
